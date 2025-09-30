@@ -1,4 +1,4 @@
-test.py
 /__pycache__
 .venv/
-account.txt
+ultima_backtester_last_params.json
+/backtesting/results
