@@ -35,7 +35,7 @@ class TradingAgent:
         intrabar_priority: str = 'SL'
     ):
         """
-        Simulate long-only strategy: enter when signal==1, exit on SL/TP intrabar or opposite signal (-1) at next open.
+        Simulate long-only strategy: enter when signal==1, exit only on SL/TP (or at dataset end).
         No lookahead: decisions at bar i execute at open of bar i+1, ATR taken from bar i.
         intrabar_priority: 'SL' or 'TP' when both hit in same bar.
         """
@@ -100,10 +100,6 @@ class TradingAgent:
                     exited = True
                 elif hit_tp:
                     exit_price = tp_price
-                    exited = True
-
-                if not exited and prev_signal == -1:
-                    exit_price = next_open
                     exited = True
 
                 if exited:

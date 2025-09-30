@@ -1,7 +1,7 @@
 import numpy as np
 
 class MeanReversionAgent:
-    def __init__(self, ma_period=20, num_std=2):
+    def __init__(self, ma_period=20, num_std=1):
         self.ma_period = ma_period
         self.num_std = num_std
         self.last_signal = None
@@ -24,7 +24,7 @@ class MeanReversionAgent:
         return signal
 
 class MACrossoverAgent:
-    def __init__(self, fast_period=10, slow_period=50):
+    def __init__(self, fast_period=10, slow_period=20):
         self.fast_period = fast_period
         self.slow_period = slow_period
         self.last_signal = None
@@ -45,7 +45,7 @@ class MACrossoverAgent:
         return signal
 
 class MomentumTrendAgent:
-    def __init__(self, ma_period=50, roc_period=10):
+    def __init__(self, ma_period=50, roc_period=5):
         self.ma_period = ma_period
         self.roc_period = roc_period
         self.last_signal = None
