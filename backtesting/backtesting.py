@@ -7,9 +7,15 @@ from itertools import product
 
 # Settings
 timeframe = mt5.TIMEFRAME_M15
-symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "XAUUSD", "USDJPY"]  # Add more as needed
+symbols = ["XAUUSD", "USDJPY"]  # Add more as needed
 start_date = datetime.now() - timedelta(days=60)  # 60 days backtest
 end_date = datetime.now()
+
+# ATR exit settings
+ATR_PERIOD = 14
+SL_ATR_MULTIPLIER = 2.0
+TP_ATR_MULTIPLIER = 3.0
+INTRABAR_PRIORITY = 'SL'  # 'SL' or 'TP' if both hit within the same bar
 
 # Strategy parameters
 ma_crossover_fast = 5
@@ -36,8 +42,20 @@ def get_data(symbol):
 
 results = {}
 agent = TradingAgent(initial_balance=10000)
+# Inject ATR/exit params into agent (a simple way to pass defaults)
+agent._atr_period = ATR_PERIOD
+agent._sl_mult = SL_ATR_MULTIPLIER
+agent._tp_mult = TP_ATR_MULTIPLIER
+agent._intrabar_priority = INTRABAR_PRIORITY
 for symbol in symbols:
     df = get_data(symbol)
+    # Pull tick specs from MT5 for realistic PnL scaling
+    sinfo = mt5.symbol_info(symbol)
+    if sinfo is not None:
+        agent._tick_size = getattr(sinfo, 'trade_tick_size', sinfo.point if hasattr(sinfo, 'point') else 0.01) or 0.01
+        agent._tick_value = getattr(sinfo, 'trade_tick_value', 1.0) or 1.0
+        # Simple default lots: 1 for FX; allow custom logic per symbol as needed
+        agent._lots = 1.0
     min_lookback = max(ma_crossover_slow, meanrev_ma_period, momentum_ma_period, breakout_lookback)
     if df is not None and len(df) > min_lookback:
         res_ma = agent.ma_crossover(df.copy(), ma_crossover_fast, ma_crossover_slow)
@@ -133,6 +151,12 @@ momentum_grid = [(p, r) for p in [20, 50, 100] for r in [5, 10, 20]]
 breakout_grid = [l for l in [10, 20, 50]]
 donchian_grid = [l for l in [10, 20, 50]]
 
+# ATR parameter grids for fine tuning
+atr_period_grid = [7, 14, 21]
+sl_mult_grid = [1.5, 2.0, 2.5, 3.0]
+tp_mult_grid = [2.0, 2.5, 3.0, 4.0]
+priority_grid = ['SL']
+
 best_params = {}
 for strategy, grid in [
     ('ma_crossover', ma_crossover_grid),
@@ -170,5 +194,57 @@ for strategy, grid in [
 print("\nBest parameters for each strategy (by total profit):")
 for strat, (params, profit) in best_params.items():
     print(f"{strat}: params={params}, total_profit={profit:.2f}")
+
+# Joint fine-tuning over strategy params plus ATR exit params
+print("\nFine-tuning ATR exit parameters jointly with strategies (by total profit):")
+best_combo = {}
+for strategy, grid in [
+    ('ma_crossover', ma_crossover_grid),
+    ('mean_reversion', meanrev_grid),
+    ('momentum_trend', momentum_grid),
+    ('breakout', breakout_grid),
+    ('donchian_channel', donchian_grid)
+]:
+    best_profit = -np.inf
+    best_params_combo = None
+    for strat_params in grid:
+        for ap in atr_period_grid:
+            for slm in sl_mult_grid:
+                for tpm in tp_mult_grid:
+                    for prio in priority_grid:
+                        # configure agent
+                        agent._atr_period = ap
+                        agent._sl_mult = slm
+                        agent._tp_mult = tpm
+                        agent._intrabar_priority = prio
+
+                        total_profit = 0
+                        for symbol in symbols:
+                            df = get_data(symbol)
+                            if df is None:
+                                continue
+                            if strategy == 'ma_crossover':
+                                res = agent.ma_crossover(df.copy(), strat_params[0], strat_params[1])
+                            elif strategy == 'mean_reversion':
+                                res = agent.mean_reversion(df.copy(), strat_params[0], strat_params[1])
+                            elif strategy == 'momentum_trend':
+                                res = agent.momentum_trend(df.copy(), strat_params[0], strat_params[1])
+                            elif strategy == 'breakout':
+                                res = agent.breakout(df.copy(), strat_params)
+                            elif strategy == 'donchian_channel':
+                                res = agent.donchian_channel(df.copy(), strat_params)
+                            else:
+                                continue
+                            total_profit += res['total_profit']
+
+                        if total_profit > best_profit:
+                            best_profit = total_profit
+                            best_params_combo = (strat_params, ap, slm, tpm, prio)
+
+    best_combo[strategy] = (best_params_combo, best_profit)
+
+print("\nBest combined strategy + ATR params (by total profit):")
+for strat, (combo, profit) in best_combo.items():
+    print(f"{strat}: strategy_params={combo[0]}, ATR_PERIOD={combo[1]}, SLx={combo[2]}, TPx={combo[3]}, priority={combo[4]}, total_profit={profit:.2f}")
 
 mt5.shutdown()
