@@ -9,9 +9,14 @@ class TradingAgent:
         self._tick_value = 1.0
         self._lots = 1.0
 
-    @staticmethod
-    def compute_atr_series(df: pd.DataFrame, period: int = 14) -> pd.Series:
-        """Compute ATR series using True Range rolling mean. No lookahead: ATR at i uses bars up to i."""
+    def compute_atr_series(self, df: pd.DataFrame, period: int = 14) -> pd.Series:
+        """Compute ATR series using True Range rolling mean with optional cached overrides."""
+        cache = getattr(self, "_precomputed_atr_cache", None)
+        if cache:
+            cached = cache.get(period)
+            if cached is not None and len(cached) == len(df):
+                return cached
+
         high = df['high']
         low = df['low']
         close = df['close']
@@ -22,6 +27,8 @@ class TradingAgent:
             (low - prev_close).abs()
         ], axis=1).max(axis=1)
         atr = tr.rolling(period).mean()
+        if cache is not None:
+            cache[period] = atr
         return atr
 
     def _simulate_long_with_sl_tp(
@@ -209,9 +216,14 @@ class TradingAgent:
     def donchian_channel(self, df, channel_length=20):
         df['donchian_high'] = df['high'].rolling(channel_length).max()
         df['donchian_low'] = df['low'].rolling(channel_length).min()
+        df['donchian_mid'] = (df['donchian_high'] + df['donchian_low']) / 2.0
+        channel_width = (df['donchian_high'] - df['donchian_low']).shift(1)
         df['signal'] = 0
-        df.loc[df['close'] > df['donchian_high'].shift(1), 'signal'] = 1
-        df.loc[df['close'] < df['donchian_low'].shift(1), 'signal'] = -1
+        entry_condition = (
+            (df['close'] <= df['donchian_low'].shift(1))
+            & (channel_width > (df['close'] * 0.0005).shift(1))
+        )
+        df.loc[entry_condition, 'signal'] = 1
         df['signal'] = df['signal'].shift(1)
         atr_period = getattr(self, '_atr_period', 14)
         sl_mult = getattr(self, '_sl_mult', 2.0)
