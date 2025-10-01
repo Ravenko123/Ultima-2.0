@@ -59,6 +59,16 @@ strategy_performance = defaultdict(lambda: {
 PERFORMANCE_LOOKBACK_DAYS = 30  # Track performance over last 30 days
 MIN_TRADES_FOR_ADAPTATION = 10  # Minimum trades before adjusting weights
 
+# Risk guard settings
+RISK_GUARD_FILE = "risk_guard_state.json"
+DAILY_MAX_DRAWDOWN = 0.12  # 12% maximum drop from daily peak
+WEEKLY_MAX_DRAWDOWN = 0.20  # 20% maximum drop from weekly peak
+RISK_RECOVERY_THRESHOLD = 0.05  # reduce risk once drawdown exceeds 5%
+RISK_RECOVERY_MIN_FACTOR = 0.35  # never risk more than 35% of base risk when deep in drawdown
+RISK_GUARD_ENABLED = False  # Temporarily disabled per latest instructions
+
+risk_guard_state: dict[str, object] = {}
+
 def load_strategy_performance():
     """Load strategy performance from file."""
     global strategy_performance
@@ -104,6 +114,155 @@ def update_strategy_performance(strategy_name: str, symbol: str, pnl: float):
     
     save_strategy_performance()
     print(f"📈 Updated performance for {strategy_name} on {symbol}: PnL={pnl:.2f}, WR={perf['win_rate']:.1%}, Trades={perf['total_trades']}")
+
+
+def _week_start(date_obj: datetime) -> datetime:
+    return (date_obj - timedelta(days=date_obj.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def load_risk_guard_state() -> dict[str, object]:
+    global risk_guard_state
+    if not RISK_GUARD_ENABLED:
+        risk_guard_state = {}
+        return risk_guard_state
+    try:
+        with open(RISK_GUARD_FILE, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+            if isinstance(data, dict):
+                risk_guard_state = data
+            else:
+                risk_guard_state = {}
+    except FileNotFoundError:
+        risk_guard_state = {}
+    except Exception as exc:
+        print(f"⚠️  Failed to load risk guard state: {exc}")
+        risk_guard_state = {}
+    return risk_guard_state
+
+
+def save_risk_guard_state() -> None:
+    if not RISK_GUARD_ENABLED:
+        return
+    try:
+        with open(RISK_GUARD_FILE, "w", encoding="utf-8") as handle:
+            json.dump(risk_guard_state, handle, indent=2)
+    except Exception as exc:
+        print(f"⚠️  Failed to save risk guard state: {exc}")
+
+
+def _reset_daily_state(now: datetime, equity: float) -> None:
+    risk_guard_state["day"] = now.date().isoformat()
+    risk_guard_state["daily_start_equity"] = equity
+    risk_guard_state["daily_peak_equity"] = equity
+    risk_guard_state["daily_drawdown"] = 0.0
+    risk_guard_state["daily_blocked"] = False
+
+
+def _reset_weekly_state(now: datetime, equity: float) -> None:
+    week_anchor = _week_start(now)
+    risk_guard_state["week_start"] = week_anchor.date().isoformat()
+    risk_guard_state["weekly_start_equity"] = equity
+    risk_guard_state["weekly_peak_equity"] = equity
+    risk_guard_state["weekly_drawdown"] = 0.0
+    risk_guard_state["weekly_blocked"] = False
+
+
+def update_risk_guard(equity: float, now: datetime | None = None) -> None:
+    if now is None:
+        now = datetime.now()
+
+    if not RISK_GUARD_ENABLED:
+        risk_guard_state.clear()
+        return
+
+    if not risk_guard_state:
+        _reset_daily_state(now, equity)
+        _reset_weekly_state(now, equity)
+
+    if risk_guard_state.get("day") != now.date().isoformat():
+        _reset_daily_state(now, equity)
+
+    current_week = _week_start(now).date().isoformat()
+    if risk_guard_state.get("week_start") != current_week:
+        _reset_weekly_state(now, equity)
+
+    risk_guard_state["equity"] = equity
+
+    daily_peak = max(risk_guard_state.get("daily_peak_equity", equity), equity)
+    risk_guard_state["daily_peak_equity"] = daily_peak
+    if daily_peak > 0:
+        daily_drawdown = max(0.0, (daily_peak - equity) / daily_peak)
+    else:
+        daily_drawdown = 0.0
+    risk_guard_state["daily_drawdown"] = daily_drawdown
+    if daily_drawdown >= DAILY_MAX_DRAWDOWN:
+        if not risk_guard_state.get("daily_blocked"):
+            print(f"🚨 Daily drawdown {daily_drawdown:.1%} breached {DAILY_MAX_DRAWDOWN:.0%} limit. Pausing trading until next session.")
+        risk_guard_state["daily_blocked"] = True
+
+    weekly_peak = max(risk_guard_state.get("weekly_peak_equity", equity), equity)
+    risk_guard_state["weekly_peak_equity"] = weekly_peak
+    if weekly_peak > 0:
+        weekly_drawdown = max(0.0, (weekly_peak - equity) / weekly_peak)
+    else:
+        weekly_drawdown = 0.0
+    risk_guard_state["weekly_drawdown"] = weekly_drawdown
+    if weekly_drawdown >= WEEKLY_MAX_DRAWDOWN:
+        if not risk_guard_state.get("weekly_blocked"):
+            print(f"🚨 Weekly drawdown {weekly_drawdown:.1%} breached {WEEKLY_MAX_DRAWDOWN:.0%} limit. Holding fire until new week.")
+        risk_guard_state["weekly_blocked"] = True
+
+    save_risk_guard_state()
+
+
+def risk_guard_allow_trade(now: datetime | None = None) -> bool:
+    if not RISK_GUARD_ENABLED:
+        return True
+    if now is None:
+        now = datetime.now()
+    if not risk_guard_state:
+        return True
+
+    if risk_guard_state.get("daily_blocked"):
+        if risk_guard_state.get("day") != now.date().isoformat():
+            risk_guard_state["daily_blocked"] = False
+        else:
+            return False
+
+    week_anchor = _week_start(now).date().isoformat()
+    if risk_guard_state.get("weekly_blocked"):
+        if risk_guard_state.get("week_start") != week_anchor:
+            risk_guard_state["weekly_blocked"] = False
+        else:
+            return False
+
+    return True
+
+
+def risk_guard_drawdown_factor() -> float:
+    if not RISK_GUARD_ENABLED:
+        return 1.0
+    if not risk_guard_state:
+        return 1.0
+    daily_dd = float(risk_guard_state.get("daily_drawdown", 0.0))
+    weekly_dd = float(risk_guard_state.get("weekly_drawdown", 0.0))
+    dd = max(daily_dd, weekly_dd)
+    if dd <= RISK_RECOVERY_THRESHOLD:
+        return 1.0
+    span = max(1e-6, max(DAILY_MAX_DRAWDOWN, WEEKLY_MAX_DRAWDOWN) - RISK_RECOVERY_THRESHOLD)
+    scaled = min(1.0, (dd - RISK_RECOVERY_THRESHOLD) / span)
+    return max(RISK_RECOVERY_MIN_FACTOR, 1.0 - scaled)
+
+
+def apply_risk_guard_to_multiplier(multiplier: float) -> float:
+    guard_factor = risk_guard_drawdown_factor()
+    if not RISK_GUARD_ENABLED:
+        return round(multiplier, 2)
+    adjusted = multiplier * guard_factor
+    min_bound = RISK_RECOVERY_MIN_FACTOR if guard_factor < 1.0 else RISK_MULTIPLIER_MIN
+    adjusted = max(min_bound, min(RISK_MULTIPLIER_MAX, adjusted))
+    return round(adjusted, 2)
+
 
 def monitor_closed_positions():
     """Monitor recently closed positions and update strategy performance."""
@@ -197,13 +356,19 @@ RESPECT_STOPS_LEVEL = True  # Enforce broker minimal stop distance if provided
 ALLOW_HEDGING = False  # When False, wait for existing positions to close before taking opposite trades
 
 # Enhanced risk management
-ACCOUNT_RISK_PER_TRADE = 0.30  # Mirror aggressive backtest profile for live trading
+ACCOUNT_RISK_PER_TRADE = 0.22  # Aggressive base risk per trade for account flipping mode
 MIN_LOT_SIZE = 0.01  # Minimum position size
 MAX_LOT_SIZE = 5.0   # Maximum position size cap
 
 # Dynamic risk multiplier bounds
 RISK_MULTIPLIER_MIN = 1.0
 RISK_MULTIPLIER_MAX = 3.5
+
+# Aggressive mode tuning
+AGGRESSIVE_MODE = True
+AGGRESSIVE_REGIME_THRESHOLD = 0.05  # Minimal regime weight still allowed when aggressive
+AGGRESSIVE_MICRO_TOLERANCE = 0.4    # Allow small counter-momentum within 40% of threshold
+HIGH_CONFIDENCE_BOOST_CAP = 1.5     # Max boost applied when confidence is exceptional
 
 # Trade quality filters
 SPREAD_POINTS_LIMIT = 10            # Maximum raw spread in points before skipping
@@ -218,6 +383,9 @@ MICRO_MOMENTUM_MIN_THRESHOLD = 0.0002
 MICRO_MOMENTUM_MAX_THRESHOLD = 0.0025
 MICRO_MOMENTUM_DYNAMIC_MULTIPLIER = 0.55
 MICRO_MOMENTUM_SOFT_PASS_RATIO = 0.45
+
+# Signal confidence gating
+CONFIDENCE_EXECUTION_THRESHOLD = 0.65  # Slightly looser gate for higher trade frequency
 
 
 def get_account_balance() -> float:
@@ -236,6 +404,21 @@ def get_account_balance() -> float:
     except Exception as e:
         print(f"Error getting account balance: {e}, using fallback balance of $1000")
         return 1000.0
+
+
+def get_account_equity_quiet() -> float:
+    """Fetch account equity without emitting log noise."""
+    try:
+        account_info = mt5.account_info()
+        if account_info is None:
+            return 0.0
+        equity_value = getattr(account_info, "equity", None)
+        if equity_value is None:
+            return float(account_info.balance)
+        return float(equity_value)
+    except Exception as exc:
+        print(f"⚠️  Failed to fetch account equity: {exc}")
+        return 0.0
 
 
 def is_market_session_active() -> bool:
@@ -707,6 +890,8 @@ def confirm_with_micro_momentum(
         threshold = max(MICRO_MOMENTUM_MIN_THRESHOLD, threshold)
 
         soft_pass = False
+        aligned_momentum = momentum_score if signal == 'buy' else -momentum_score
+        tolerance = threshold * AGGRESSIVE_MICRO_TOLERANCE
 
         if signal == 'buy':
             if momentum_score >= threshold:
@@ -719,6 +904,14 @@ def confirm_with_micro_momentum(
                 return True, float(momentum_score), threshold, soft_pass
             elif momentum_score <= -threshold * MICRO_MOMENTUM_SOFT_PASS_RATIO:
                 soft_pass = True
+                return True, float(momentum_score), threshold, soft_pass
+
+        if AGGRESSIVE_MODE and regime in ('TRENDING', 'VOLATILE'):
+            if aligned_momentum >= -tolerance:
+                soft_pass = True
+                print(
+                    f"⚡ {symbol}: Aggressive micro override for {signal} (aligned {aligned_momentum:+.2%} vs tolerance {-tolerance:.2%})."
+                )
                 return True, float(momentum_score), threshold, soft_pass
 
         return False, float(momentum_score), threshold, soft_pass
@@ -921,7 +1114,11 @@ def get_regime_strategy_weight(strategy_name: str, regime: str) -> float:
 def should_trade_strategy_in_regime(strategy_name: str, regime: str) -> bool:
     """Check if a strategy should be active in the current regime."""
     weight = get_regime_strategy_weight(strategy_name, regime)
-    return weight >= 0.15  # Only trade strategies with 15%+ weight
+    if weight >= 0.15:
+        return True
+    if AGGRESSIVE_MODE and weight >= AGGRESSIVE_REGIME_THRESHOLD:
+        return True
+    return False  # Default: disable very low-weight strategies
 
 
 # Connect to MT5
@@ -931,6 +1128,13 @@ if not mt5.initialize():
 
 # Load strategy performance data
 load_strategy_performance()
+load_risk_guard_state()
+
+initial_equity = get_account_equity_quiet()
+if initial_equity > 0:
+    update_risk_guard(initial_equity)
+else:
+    print("⚠️  Unable to prime risk guard with account equity (0 received).")
 
 # Agent settings for each strategy - OPTIMIZED FROM BACKTESTING
 agent_definitions = [
@@ -1175,6 +1379,110 @@ def compute_atr(df: pd.DataFrame, period: int = ATR_PERIOD):
         return None
 
 
+def calculate_volatility_pressure(df: pd.DataFrame, short_period: int = 5, long_period: int = 20) -> float:
+    """Measure volatility expansion or contraction via ATR ratio."""
+    try:
+        if df is None or len(df) < long_period + 5:
+            return 1.0
+        short_atr = compute_atr(df, period=short_period)
+        long_atr = compute_atr(df, period=long_period)
+        if short_atr is None or long_atr is None or long_atr <= 0:
+            return 1.0
+        ratio = short_atr / long_atr
+        return max(0.5, min(1.8, float(ratio)))
+    except Exception:
+        return 1.0
+
+
+def calculate_candle_conviction(df: pd.DataFrame) -> float:
+    """Gauge strength of the last completed candle (body size vs wicks)."""
+    try:
+        if df is None or len(df) < 3:
+            return 1.0
+        last = df.iloc[-2]
+        open_price = float(last['open'])
+        close_price = float(last['close'])
+        high = float(last['high'])
+        low = float(last['low'])
+        price_range = max(1e-10, high - low)
+        body = abs(close_price - open_price)
+        upper_wick = max(0.0, high - max(open_price, close_price))
+        lower_wick = max(0.0, min(open_price, close_price) - low)
+        wick_ratio = (upper_wick + lower_wick) / price_range
+        body_ratio = body / price_range
+        directional_bias = 1.08 if close_price > open_price else 0.95
+        conviction = body_ratio * (1.0 - 0.5 * wick_ratio) * directional_bias
+        return max(0.5, min(1.5, float(conviction)))
+    except Exception:
+        return 1.0
+
+
+def calculate_signal_confidence(
+    session_priority: int,
+    regime_weight: float,
+    performance_weight: float,
+    guard_factor: float,
+    signal_direction: str,
+    micro_score: float | None,
+    micro_threshold: float | None,
+    micro_soft: bool,
+    volatility_pressure: float,
+    candle_conviction: float,
+) -> float:
+    """Blend contextual factors into a confidence score around 1.0 baseline."""
+    base = 1.0
+
+    # Regime alignment: normalize around 0.3 baseline
+    regime_factor = 0.65 + 1.1 * min(1.0, regime_weight / 0.35)
+    base *= regime_factor
+
+    # Strategy performance factor (win-rate/profit factor proxy around 1.0-1.5)
+    perf_factor = 0.7 + 0.3 * min(1.6, max(0.4, performance_weight))
+    base *= perf_factor
+
+    # Session quality scaling (1.0 at top-tier sessions)
+    session_factor = 0.7 + 0.3 * min(1.0, max(0.4, session_priority / 5))
+    base *= session_factor
+
+    # Guard factor (drawdown recovery throttles)
+    guard_factor = max(0.4, min(1.0, guard_factor))
+    base *= (0.75 + 0.25 * guard_factor)
+
+    if micro_score is not None and micro_threshold:
+        alignment_raw = micro_score if signal_direction == 'buy' else -micro_score
+        effective_threshold = max(1e-9, micro_threshold)
+        alignment_ratio = alignment_raw / effective_threshold
+        if micro_soft and alignment_ratio < 1.0:
+            alignment_ratio = max(0.6, alignment_ratio)
+        if alignment_ratio >= 1.0:
+            micro_factor = min(1.5, 1.0 + 0.25 * (alignment_ratio - 1.0))
+        elif alignment_ratio >= 0.0:
+            micro_factor = 0.85 + 0.15 * alignment_ratio
+        else:
+            micro_factor = max(0.55, 1.0 + 0.2 * alignment_ratio)
+        base *= micro_factor
+    else:
+        base *= 0.9  # slight penalty without micro confirmation detail
+
+    base *= max(0.75, min(1.3, volatility_pressure))
+    base *= max(0.75, min(1.25, candle_conviction))
+
+    confidence = 0.45 + base * 0.35
+    return round(float(min(1.8, confidence)), 3)
+
+
+def adjust_risk_with_confidence(multiplier: float, confidence: float) -> float:
+    """Tilt risk multiplier up/down based on confidence."""
+    adjusted = multiplier
+    if confidence >= 1.25:
+        boost = min(HIGH_CONFIDENCE_BOOST_CAP, confidence + 0.1)
+        adjusted *= boost
+    elif confidence < 0.9:
+        cut = max(0.65, confidence)
+        adjusted *= cut
+    return adjusted
+
+
 def send_order(
     symbol,
     signal,
@@ -1320,12 +1628,55 @@ def send_order(
     else:
         print(f"OrderSend success for {symbol}: {signal} at {price} | SL={request.get('sl')} TP={request.get('tp')}")
 
+scan_counter = 0
+
 try:
     while True:
+        scan_counter += 1
         if not ensure_connection_ready():
             print("Waiting before retrying MT5 connection check...")
             time.sleep(5)
             continue
+
+        cycle_stats: dict[str, int] = defaultdict(int)
+        now_local = datetime.now()
+        now_utc = datetime.utcnow()
+        print("\n" + "=" * 68)
+        print(f"🔁 Scan #{scan_counter} | Local {now_local.strftime('%Y-%m-%d %H:%M:%S')} | UTC {now_utc.strftime('%H:%M:%S')}")
+
+        account_info = mt5.account_info()
+        if account_info:
+            print(
+                "💼 Account snapshot -> "
+                f"Balance: {account_info.balance:.2f} | Equity: {account_info.equity:.2f} | "
+                f"Free Margin: {account_info.margin_free:.2f} | Margin Used: {account_info.margin:.2f} | "
+                f"Open PnL: {account_info.profit:.2f}"
+            )
+        else:
+            print("💼 Account snapshot unavailable (mt5.account_info() returned None).")
+
+        active_positions = mt5.positions_get() or []
+        if active_positions:
+            position_summary: dict[str, dict[str, float]] = defaultdict(lambda: {'count': 0, 'buy': 0.0, 'sell': 0.0, 'pnl': 0.0})
+            for pos in active_positions:
+                stats = position_summary[pos.symbol]
+                stats['count'] += 1
+                stats['pnl'] += float(getattr(pos, 'profit', 0.0) or 0.0)
+                volume = float(getattr(pos, 'volume', 0.0) or 0.0)
+                if pos.type == mt5.POSITION_TYPE_BUY:
+                    stats['buy'] += volume
+                else:
+                    stats['sell'] += volume
+            summary_parts = []
+            for sym in sorted(position_summary.keys()):
+                stats = position_summary[sym]
+                net_vol = stats['buy'] - stats['sell']
+                summary_parts.append(
+                    f"{sym}: {int(stats['count'])} pos (buy {stats['buy']:.2f}, sell {stats['sell']:.2f}, net {net_vol:+.2f}, pnl {stats['pnl']:.2f})"
+                )
+            print("📂 Open positions -> " + " | ".join(summary_parts))
+        else:
+            print("📂 Open positions -> none")
 
         # Check if we're in an active trading session
         if not is_market_session_active():
@@ -1340,10 +1691,31 @@ try:
         
         # Monitor closed positions for performance tracking
         monitor_closed_positions()
+
+        equity_snapshot = get_account_equity_quiet()
+        if equity_snapshot > 0:
+            update_risk_guard(equity_snapshot)
+        else:
+            print("⚠️  Account equity unavailable; keeping previous risk guard snapshot.")
+
+        guard_trading_allowed = risk_guard_allow_trade()
+        guard_factor = risk_guard_drawdown_factor()
+        if not RISK_GUARD_ENABLED:
+            print("🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.")
+        elif not guard_trading_allowed:
+            daily_dd = float(risk_guard_state.get("daily_drawdown", 0.0))
+            weekly_dd = float(risk_guard_state.get("weekly_drawdown", 0.0))
+            print(f"🛑 Risk guard: blocking new entries (daily DD {daily_dd:.1%}, weekly DD {weekly_dd:.1%}).")
+        elif guard_factor < 1.0:
+            daily_dd = float(risk_guard_state.get("daily_drawdown", 0.0))
+            weekly_dd = float(risk_guard_state.get("weekly_drawdown", 0.0))
+            print(f"🛡️ Risk guard moderation: scaling risk to {guard_factor:.0%} (daily DD {daily_dd:.1%}, weekly DD {weekly_dd:.1%}).")
         
         for symbol in symbols:
+            cycle_stats['symbols_total'] += 1
             symbol_info = prepare_symbol(symbol)
             if symbol_info is None:
+                cycle_stats['symbols_failed_prepare'] += 1
                 print(f"Skipping {symbol} because symbol preparation failed.")
                 continue
                 
@@ -1351,6 +1723,7 @@ try:
             if not should_trade_instrument_in_session(symbol):
                 session_priority = get_instrument_session_priority(symbol, session_name)
                 print(f"📊 {symbol}: Skipping (session priority {session_priority}/{MIN_SESSION_PRIORITY} for {session_name})")
+                cycle_stats['symbols_skipped_session'] += 1
                 continue
             else:
                 session_priority = get_instrument_session_priority(symbol, session_name)
@@ -1360,6 +1733,7 @@ try:
             is_blackout, news_reason = is_news_blackout_period(symbol)
             if is_blackout:
                 print(f"📰 {symbol}: Skipping due to news blackout - {news_reason}")
+                cycle_stats['symbols_skipped_news'] += 1
                 continue
                 
             today = datetime.now()
@@ -1367,6 +1741,7 @@ try:
             rates = mt5.copy_rates_range(symbol, timeframe, from_date, today)
             if rates is None:
                 print(f"No data for {symbol}")
+                cycle_stats['symbols_skipped_data'] += 1
                 continue
             df = pd.DataFrame(rates)
             df['time'] = pd.to_datetime(df['time'], unit='s')
@@ -1376,8 +1751,12 @@ try:
                 print(f"{symbol} computed ATR({ATR_PERIOD}) = {atr_value:.6f}")
             else:
                 print(f"{symbol} ATR could not be computed (insufficient data).")
+                cycle_stats['atr_missing'] += 1
 
             atr_cache_by_period: dict[int, float | None] = {ATR_PERIOD: atr_value}
+            volatility_pressure = calculate_volatility_pressure(df)
+            candle_conviction = calculate_candle_conviction(df)
+            print(f"{symbol} Volatility pressure: {volatility_pressure:.2f} | Candle conviction: {candle_conviction:.2f}")
                 
             # Detect market regime for strategy optimization
             current_regime = detect_market_regime(df)
@@ -1388,6 +1767,17 @@ try:
                 manage_position_stops(symbol, atr_value)
             
             positions = mt5.positions_get(symbol=symbol) or []
+            if positions:
+                pos_details = []
+                for p in positions:
+                    direction = 'BUY' if p.type == mt5.POSITION_TYPE_BUY else 'SELL'
+                    pos_details.append(
+                        f"{direction} {p.volume:.2f}@{p.price_open:.5f}→{p.price_current:.5f} PnL {getattr(p, 'profit', 0.0):+.2f}"
+                    )
+                print(f"📈 {symbol} Open positions: {' | '.join(pos_details)}")
+                cycle_stats['symbols_with_open_positions'] += 1
+            else:
+                print(f"📈 {symbol}: no open positions")
             have_buy = any(p.type == mt5.POSITION_TYPE_BUY for p in positions)
             have_sell = any(p.type == mt5.POSITION_TYPE_SELL for p in positions)
 
@@ -1402,6 +1792,7 @@ try:
                 if not should_trade_strategy_in_regime(strategy_key, current_regime):
                     regime_weight = get_regime_strategy_weight(strategy_key, current_regime)
                     print(f"🚫 {symbol} {strategy_name}: Disabled in {current_regime} regime (weight: {regime_weight:.1%})")
+                    cycle_stats['strategies_disabled_regime'] += 1
                     continue
                 
                 sl_mult = agent_info.get('sl_mult', SL_ATR_MULTIPLIER)
@@ -1414,6 +1805,7 @@ try:
                     atr_cache_by_period[atr_period_override] = strategy_atr_value
                 if strategy_atr_value is None:
                     print(f"🚫 {symbol} {strategy_name}: Insufficient data for ATR({atr_period_override})")
+                    cycle_stats['strategies_skipped_atr'] += 1
                     continue
                 
                 # Adjust priority based on regime and performance (lower number = higher priority)
@@ -1421,9 +1813,17 @@ try:
                 performance_weight = get_strategy_performance_weight(strategy_key, symbol)
                 combined_weight = regime_weight * performance_weight
                 regime_adjusted_priority = priority / combined_weight  # Higher weight = better priority
-                risk_multiplier = calculate_risk_multiplier(session_priority, regime_weight, performance_weight)
+                base_risk_multiplier = calculate_risk_multiplier(session_priority, regime_weight, performance_weight)
                 
                 signal = agent.get_signal(df)
+                if signal not in ('buy', 'sell'):
+                    cycle_stats['strategies_no_signal'] += 1
+                    print(
+                        f"ℹ️ {symbol} {strategy_name}: No actionable signal (raw={signal}) | "
+                        f"regime weight {regime_weight:.1%}, performance {performance_weight:.2f}x, adj priority {regime_adjusted_priority:.1f}"
+                    )
+                    continue
+                
                 micro_momentum_score = None
                 micro_momentum_threshold = None
                 micro_soft_pass = False
@@ -1431,12 +1831,14 @@ try:
                 # Multi-timeframe confirmation
                 if signal in ('buy', 'sell'):
                     mtf_confirmed = confirm_signal_with_mtf(signal, symbol)
+                    mtf_bias = get_mtf_trend_bias(symbol)
                     if not mtf_confirmed:
-                        mtf_bias = get_mtf_trend_bias(symbol)
-                        print(f"🔍 {symbol} {strategy_name}: Signal {signal} rejected by MTF filter (H1 bias: {mtf_bias})")
-                        continue  # Skip this signal
+                        if strategy_key == 'mean_reversion' and current_regime == 'RANGING':
+                            print(f"🌀 {symbol} {strategy_name}: Overriding MTF bias ({mtf_bias}) in ranging regime for mean reversion signal {signal}.")
+                        else:
+                            print(f"🔍 {symbol} {strategy_name}: Signal {signal} rejected by MTF filter (H1 bias: {mtf_bias})")
+                            continue  # Skip this signal
                     else:
-                        mtf_bias = get_mtf_trend_bias(symbol)
                         print(f"✅ {symbol} {strategy_name}: Signal {signal} confirmed by MTF (H1 bias: {mtf_bias})")
 
                     reference_price = float(df['close'].iloc[-1]) if not df['close'].empty else None
@@ -1448,23 +1850,60 @@ try:
                         reference_price,
                     )
                     if not micro_pass:
-                        print(f"🎯 {symbol} {strategy_name}: Signal {signal} rejected by micro momentum ({micro_score:+.2%} vs {micro_threshold:.2%})")
-                        continue
+                        if strategy_key == 'mean_reversion' and current_regime == 'RANGING':
+                            print(f"🎯 {symbol} {strategy_name}: Micro momentum counter-trend ({micro_score:+.2%} vs {micro_threshold:.2%}); allowing fade entry in range.")
+                            micro_momentum_score = None
+                            micro_momentum_threshold = None
+                            micro_soft_pass = True
+                            cycle_stats['micro_overrides'] += 1
+                        else:
+                            print(f"🎯 {symbol} {strategy_name}: Signal {signal} rejected by micro momentum ({micro_score:+.2%} vs {micro_threshold:.2%})")
+                            cycle_stats['signals_filtered_micro'] += 1
+                            continue
                     else:
                         micro_momentum_score = micro_score
                         micro_momentum_threshold = micro_threshold
                         micro_soft_pass = micro_soft
                         softness_text = " (soft confirm)" if micro_soft else ""
                         print(f"🎯 {symbol} {strategy_name}: Micro momentum aligned {micro_score:+.2%} ≥ {micro_threshold:.2%}{softness_text}")
+                        cycle_stats['micro_confirms'] += 1
                 
                 if micro_momentum_score is not None:
                     softness_text = " soft" if micro_soft_pass else ""
                     micro_text = f", micro {micro_momentum_score:+.2%}/{micro_momentum_threshold:.2%}{softness_text}"
+                    if micro_momentum_threshold:
+                        aligned = micro_momentum_score if signal == 'buy' else -micro_momentum_score
+                        if aligned < 0:
+                            cycle_stats['micro_overrides'] += 1
                 else:
                     micro_text = ""
-                print(f"{symbol} {strategy_name} Final Signal: {signal} (regime: {regime_weight:.1%}, performance: {performance_weight:.1f}x, adj priority: {regime_adjusted_priority:.1f}, risk x{risk_multiplier:.2f}, ATR({atr_period_override})={strategy_atr_value:.6f}{micro_text})")
+                confidence = calculate_signal_confidence(
+                    session_priority,
+                    regime_weight,
+                    performance_weight,
+                    guard_factor,
+                    signal,
+                    micro_momentum_score,
+                    micro_momentum_threshold,
+                    micro_soft_pass,
+                    volatility_pressure,
+                    candle_conviction,
+                )
+
+                adjusted_risk_multiplier = adjust_risk_with_confidence(base_risk_multiplier, confidence)
+                risk_multiplier = apply_risk_guard_to_multiplier(adjusted_risk_multiplier)
+
+                if signal in ('buy', 'sell') and confidence < CONFIDENCE_EXECUTION_THRESHOLD:
+                    print(f"⚖️ {symbol} {strategy_name}: Confidence {confidence:.2f} below threshold {CONFIDENCE_EXECUTION_THRESHOLD:.2f}; skipping signal {signal}.")
+                    cycle_stats['signals_filtered_confidence'] += 1
+                    signal = None
+
+                print(
+                    f"{symbol} {strategy_name} Final Signal: {signal} (regime: {regime_weight:.1%}, performance: {performance_weight:.2f}x, adj priority: {regime_adjusted_priority:.1f}, confidence {confidence:.2f}, risk base x{base_risk_multiplier:.2f} → x{risk_multiplier:.2f}, ATR({atr_period_override})={strategy_atr_value:.6f}{micro_text})"
+                )
 
                 if signal in ('buy', 'sell'):
+                    cycle_stats['candidates_total'] += 1
                     all_candidates.append({
                         'signal': signal,
                         'label': strategy_name,
@@ -1472,27 +1911,37 @@ try:
                         'sl_mult': sl_mult,
                         'tp_mult': tp_mult,
                         'regime_weight': regime_weight,
+                        'base_risk_multiplier': base_risk_multiplier,
                         'risk_multiplier': risk_multiplier,
                         'micro_momentum': micro_momentum_score,
                         'micro_threshold': micro_momentum_threshold,
                         'micro_soft_pass': micro_soft_pass,
                         'atr_value': strategy_atr_value,
                         'atr_period': atr_period_override,
+                        'confidence': confidence,
                     })
 
             if all_candidates:
-                # Pick the absolute highest priority signal regardless of direction
-                best_candidate = min(all_candidates, key=lambda c: c['priority'])
+                if not guard_trading_allowed:
+                    cycle_stats['symbols_blocked_guard'] += 1
+                    cycle_stats['signals_skipped_guard'] += len(all_candidates)
+                    print(f"{symbol}: Risk guard active, skipping {len(all_candidates)} candidate signals this cycle.")
+                    continue
+                # Pick the highest confidence signal, tie-breaker by priority
+                best_candidate = max(all_candidates, key=lambda c: (c['confidence'], -c['priority']))
                 signal_type = best_candidate['signal']
                 
                 if signal_type == 'buy':
                     if have_sell and not ALLOW_HEDGING:
                         print(f"{symbol}: skipping {best_candidate['label']} buy (priority {best_candidate['priority']}) because opposite position is open")
+                        cycle_stats['signals_skipped_position_conflict'] += 1
                     elif have_buy:
                         print(f"{symbol}: already in buy position, ignoring {best_candidate['label']} (priority {best_candidate['priority']})")
+                        cycle_stats['signals_skipped_duplicate_side'] += 1
                     else:
                         order_comment = build_order_comment(best_candidate['label'], 'buy', best_candidate['priority'])
-                        print(f"{symbol}: executing BUY via {best_candidate['label']} (priority {best_candidate['priority']}) | comment {order_comment}")
+                        print(f"{symbol}: executing BUY via {best_candidate['label']} (priority {best_candidate['priority']}, confidence {best_candidate['confidence']:.2f}) | comment {order_comment}")
+                        cycle_stats['signals_executed'] += 1
                         send_order(
                             symbol,
                             'buy',
@@ -1506,11 +1955,14 @@ try:
                 elif signal_type == 'sell':
                     if have_buy and not ALLOW_HEDGING:
                         print(f"{symbol}: skipping {best_candidate['label']} sell (priority {best_candidate['priority']}) because opposite position is open")
+                        cycle_stats['signals_skipped_position_conflict'] += 1
                     elif have_sell:
                         print(f"{symbol}: already in sell position, ignoring {best_candidate['label']} (priority {best_candidate['priority']})")
+                        cycle_stats['signals_skipped_duplicate_side'] += 1
                     else:
                         order_comment = build_order_comment(best_candidate['label'], 'sell', best_candidate['priority'])
-                        print(f"{symbol}: executing SELL via {best_candidate['label']} (priority {best_candidate['priority']}) | comment {order_comment}")
+                        print(f"{symbol}: executing SELL via {best_candidate['label']} (priority {best_candidate['priority']}, confidence {best_candidate['confidence']:.2f}) | comment {order_comment}")
+                        cycle_stats['signals_executed'] += 1
                         send_order(
                             symbol,
                             'sell',
@@ -1525,7 +1977,23 @@ try:
                 # Now skip any remaining lower-priority signals
                 remaining_candidates = [c for c in all_candidates if c != best_candidate]
                 for candidate in remaining_candidates:
-                    print(f"{symbol}: skipping {candidate['label']} {candidate['signal']} (priority {candidate['priority']}) - lower priority than executed {best_candidate['label']} (priority {best_candidate['priority']})")
+                    print(
+                        f"{symbol}: skipping {candidate['label']} {candidate['signal']} (conf {candidate['confidence']:.2f}, priority {candidate['priority']}) "
+                        f"- beaten by {best_candidate['label']} (conf {best_candidate['confidence']:.2f}, priority {best_candidate['priority']})"
+                    )
+        print(
+            "📒 Scan #{scan_counter} summary -> "
+            f"symbols processed {cycle_stats['symbols_total']}/{len(symbols)} | "
+            f"open-symbols {cycle_stats['symbols_with_open_positions']} | "
+            f"candidates {cycle_stats['candidates_total']} | executed {cycle_stats['signals_executed']} | "
+            f"confidence-filtered {cycle_stats['signals_filtered_confidence']} | micro-filtered {cycle_stats['signals_filtered_micro']} | "
+            f"position-blocked {cycle_stats['signals_skipped_position_conflict']} | duplicates {cycle_stats['signals_skipped_duplicate_side']} | guard-blocked {cycle_stats['signals_skipped_guard']}"
+        )
+        print(
+            "📊 Strategy diagnostics -> "
+            f"disabled {cycle_stats['strategies_disabled_regime']} | no-signal {cycle_stats['strategies_no_signal']} | "
+            f"ATR-missing {cycle_stats['strategies_skipped_atr']} | micro-overrides {cycle_stats['micro_overrides']} | micro-confirms {cycle_stats['micro_confirms']}"
+        )
         time.sleep(300)  # Wait 5 minutes
 finally:
     mt5.shutdown()

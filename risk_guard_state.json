@@ -1,0 +1,13 @@
+{
+  "day": "2025-10-01",
+  "daily_start_equity": 168.3,
+  "daily_peak_equity": 168.3,
+  "daily_drawdown": 0.14046345811051703,
+  "daily_blocked": true,
+  "week_start": "2025-09-29",
+  "weekly_start_equity": 168.3,
+  "weekly_peak_equity": 168.3,
+  "weekly_drawdown": 0.14046345811051703,
+  "weekly_blocked": false,
+  "equity": 144.66
+}
