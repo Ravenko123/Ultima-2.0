@@ -68,6 +68,11 @@ RISK_RECOVERY_MIN_FACTOR = 0.35  # never risk more than 35% of base risk when de
 RISK_GUARD_ENABLED = False  # Temporarily disabled per latest instructions
 
 risk_guard_state: dict[str, object] = {}
+soft_guard_state: dict[str, float | bool] = {
+    "blocked": False,
+    "throttle": 1.0,
+    "drawdown": 0.0,
+}
 
 def load_strategy_performance():
     """Load strategy performance from file."""
@@ -254,12 +259,58 @@ def risk_guard_drawdown_factor() -> float:
     return max(RISK_RECOVERY_MIN_FACTOR, 1.0 - scaled)
 
 
+def evaluate_soft_guard(balance: float | None, equity: float | None) -> dict[str, float | bool | None]:
+    """Assess soft guard state based on current balance/equity."""
+    if not SOFT_GUARD_ENABLED or balance is None or balance <= 0 or equity is None:
+        soft_guard_state.update({"blocked": False, "throttle": 1.0, "drawdown": 0.0})
+        return {"blocked": False, "throttle": 1.0, "drawdown": 0.0, "transition": None}
+
+    previous_blocked = bool(soft_guard_state.get("blocked", False))
+    previous_throttle = float(soft_guard_state.get("throttle", 1.0) or 1.0)
+
+    drawdown = max(0.0, (balance - equity) / balance)
+
+    blocked = previous_blocked
+    if previous_blocked:
+        if drawdown <= SOFT_GUARD_RESUME:
+            blocked = False
+    else:
+        if drawdown >= SOFT_GUARD_LIMIT:
+            blocked = True
+
+    if blocked:
+        throttle = 0.0
+    else:
+        if drawdown <= SOFT_GUARD_RESUME:
+            throttle = 1.0
+        else:
+            span = max(1e-6, SOFT_GUARD_LIMIT - SOFT_GUARD_RESUME)
+            ratio = min(1.0, max(0.0, (drawdown - SOFT_GUARD_RESUME) / span))
+            throttle = max(0.35, 1.0 - ratio * 0.65)
+
+    transition: dict[str, float | str] | None = None
+    if blocked != previous_blocked:
+        transition = {"type": "block" if blocked else "resume"}
+    elif abs(throttle - previous_throttle) >= 0.05:
+        transition = {"type": "throttle", "value": throttle}
+
+    soft_guard_state.update({"blocked": blocked, "throttle": throttle, "drawdown": drawdown})
+    return {"blocked": blocked, "throttle": throttle, "drawdown": drawdown, "transition": transition}
+
+
 def apply_risk_guard_to_multiplier(multiplier: float) -> float:
-    guard_factor = risk_guard_drawdown_factor()
-    if not RISK_GUARD_ENABLED:
-        return round(multiplier, 2)
-    adjusted = multiplier * guard_factor
-    min_bound = RISK_RECOVERY_MIN_FACTOR if guard_factor < 1.0 else RISK_MULTIPLIER_MIN
+    guard_factor = risk_guard_drawdown_factor() if RISK_GUARD_ENABLED else 1.0
+    soft_factor = float(soft_guard_state.get("throttle", 1.0) or 1.0) if SOFT_GUARD_ENABLED else 1.0
+    combined_factor = guard_factor * soft_factor
+
+    adjusted = multiplier * combined_factor
+
+    min_bound = RISK_MULTIPLIER_MIN
+    if RISK_GUARD_ENABLED and guard_factor < 1.0:
+        min_bound = min(min_bound, RISK_RECOVERY_MIN_FACTOR)
+    if SOFT_GUARD_ENABLED and soft_factor < 1.0:
+        min_bound = min(min_bound, max(0.35, soft_factor))
+
     adjusted = max(min_bound, min(RISK_MULTIPLIER_MAX, adjusted))
     return round(adjusted, 2)
 
@@ -364,6 +415,18 @@ MAX_LOT_SIZE = 5.0   # Maximum position size cap
 RISK_MULTIPLIER_MIN = 1.0
 RISK_MULTIPLIER_MAX = 3.5
 
+# Scan cadence configuration
+SCAN_INTERVAL_SECONDS = 120       # Time between scan loops (seconds)
+
+# Soft drawdown guard (still aggressive but avoids death spirals)
+SOFT_GUARD_ENABLED = True
+SOFT_GUARD_LIMIT = 0.35           # Block new trades if unrealized DD exceeds 35% of balance
+SOFT_GUARD_RESUME = 0.20          # Resume trading once DD recovers below 20%
+
+# Drawdown-aware micro confirmation tuning
+DRAWDOWN_RELAXATION_PER_ATR = 0.25   # Relax micro alignment 25% per ATR of drawdown
+DRAWDOWN_OVERRIDE_ATR = 1.2          # Allow fallback overrides when drawdown exceeds 1.2 ATR
+
 # Aggressive mode tuning
 AGGRESSIVE_MODE = True
 AGGRESSIVE_REGIME_THRESHOLD = 0.05  # Minimal regime weight still allowed when aggressive
@@ -375,9 +438,9 @@ HIGH_CONFIDENCE_BOOST_CAP = 1.5     # Max boost applied when confidence is excep
 PYRAMID_ENABLED = True
 PYRAMID_MAX_ENTRIES_PER_SIDE = 3          # Total entries (initial + adds) allowed per direction
 PYRAMID_MIN_CONFIDENCE = 0.9              # Require strong conviction to stack
-PYRAMID_MAX_LOSING_POSITIONS = 2          # Limit averaging down to one additional entry
-PYRAMID_WINNING_RISK_BOOST = 1.25         # Risk multiplier boost when scaling into profitable legs
-PYRAMID_LOSING_RISK_BOOST = 1.05          # Slight size boost when averaging into drawdown
+PYRAMID_MAX_LOSING_POSITIONS = 3          # Allow deeper averaging while managing size
+PYRAMID_WINNING_RISK_BOOST = 1.2          # Risk multiplier boost when scaling into profitable legs
+PYRAMID_LOSING_RISK_BOOST = 1.0           # Neutral sizing when averaging into drawdown
 
 # Trade quality filters
 SPREAD_POINTS_LIMIT = 10            # Maximum raw spread in points before skipping
@@ -534,8 +597,19 @@ CORRELATION_GROUPS = {
     "SAFE_HAVEN": ["USDJPY+", "XAUUSD+"],       # Risk-off correlation
 }
 
-MAX_CORRELATED_POSITIONS = 2  # Max positions in same correlation group
-CORRELATION_POSITION_LIMIT = 0.6  # Reduce position size if multiple correlated trades
+DEFAULT_CORRELATION_LIMITS = {
+    "max_same_direction": 2,
+    "max_total": 3,
+    "size_multiplier": 0.6,
+}
+
+CORRELATION_GROUP_LIMITS = {
+    "EUR_PAIRS": {"max_same_direction": 3, "max_total": 4, "size_multiplier": 0.65},
+    "GBP_PAIRS": {"max_same_direction": 3, "max_total": 4, "size_multiplier": 0.6},
+    "JPY_PAIRS": {"max_same_direction": 2, "max_total": 3, "size_multiplier": 0.5},
+    "USD_MAJORS": {"max_same_direction": 3, "max_total": 4, "size_multiplier": 0.65},
+    "SAFE_HAVEN": {"max_same_direction": 2, "max_total": 2, "size_multiplier": 0.5},
+}
 
 # Market Regime Detection - Dynamic strategy adaptation
 REGIME_LOOKBACK_PERIODS = 50  # Bars to analyze for regime detection
@@ -765,27 +839,71 @@ def close_partial_position(ticket: int, volume: float):
         
         position = position[0]
         symbol = position.symbol
+
+        symbol_info = mt5.symbol_info(symbol)
+        if symbol_info is None:
+            mt5.symbol_select(symbol, True)
+            symbol_info = mt5.symbol_info(symbol)
+        if symbol_info is None:
+            print(f"Unable to retrieve symbol info for {symbol}; skipping partial close.")
+            return False
+
+        tick = mt5.symbol_info_tick(symbol)
+        if tick is None:
+            print(f"No tick data for {symbol}; cannot execute partial close.")
+            return False
         
         # Determine order type (opposite of position type)
         if position.type == 0:  # Close buy position with sell order
             order_type = mt5.ORDER_TYPE_SELL
-            price = mt5.symbol_info_tick(symbol).bid
+            price = tick.bid
         else:  # Close sell position with buy order
             order_type = mt5.ORDER_TYPE_BUY
-            price = mt5.symbol_info_tick(symbol).ask
+            price = tick.ask
+
+        max_closeable = float(getattr(position, 'volume', 0.0) or 0.0)
+        if max_closeable <= 0:
+            return False
+
+        requested_volume = min(volume, max_closeable)
+        normalized_volume = normalize_volume(requested_volume, symbol_info)
+
+        if normalized_volume <= 0:
+            print(f"Partial close volume normalized to zero for {symbol}; aborting.")
+            return False
+
+        if normalized_volume > max_closeable:
+            normalized_volume = max_closeable
+
+        residual = max_closeable - normalized_volume
+        min_volume = getattr(symbol_info, 'volume_min', 0.01) or 0.01
+        step = getattr(symbol_info, 'volume_step', 0.01) or 0.01
+
+        if residual > 0 and residual < min_volume:
+            # Leaving less than the minimum causes rejection; adjust to close entire position
+            normalized_volume = max_closeable
+
+        filling_type = resolve_filling_type(symbol_info)
+        time_type = getattr(mt5, 'ORDER_TIME_GTC', 0)
         
         request = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": symbol,
-            "volume": volume,
+            "volume": normalized_volume,
             "type": order_type,
             "position": ticket,
             "price": price,
             "comment": "Partial profit",
+            "type_filling": filling_type,
+            "type_time": time_type,
+            "deviation": 10,
         }
         
         result = mt5.order_send(request)
         if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+            return True
+        elif result and result.retcode == getattr(mt5, 'TRADE_RETCODE_PLACED', -1):
+            print(f"Partial close for ticket {ticket} placed (pending).")
             return True
         else:
             print(f"Failed to close partial position for ticket {ticket}: {result.comment if result else 'No result'}")
@@ -860,12 +978,59 @@ def confirm_signal_with_mtf(signal: str, symbol: str) -> bool:
         return False
 
 
+def _calculate_drawdown_pressure_atr(
+    positions: list | None,
+    atr_value: float | None,
+    signal: str,
+) -> tuple[float, float, float, float]:
+    """Estimate drawdown pressure in ATR units for the given signal direction.
+
+    Returns tuple of (same_direction, opposite_direction, worst_single, total_loss)
+    expressed in ATR multiples. Values are 0.0 when unavailable.
+    """
+    if not positions or atr_value is None or atr_value <= 0:
+        return 0.0, 0.0, 0.0, 0.0
+
+    same_direction_dd = 0.0
+    opposite_direction_dd = 0.0
+    worst_dd = 0.0
+    total_dd = 0.0
+
+    for pos in positions:
+        price_open = float(getattr(pos, 'price_open', 0.0) or 0.0)
+        price_current = float(getattr(pos, 'price_current', 0.0) or 0.0)
+        if price_open <= 0 or price_current <= 0:
+            continue
+
+        if getattr(pos, 'type', None) == mt5.POSITION_TYPE_BUY:
+            adverse_move = price_open - price_current
+            pos_side = 'buy'
+        else:
+            adverse_move = price_current - price_open
+            pos_side = 'sell'
+
+        if adverse_move <= 0:
+            continue  # Position is not under water
+
+        drawdown_atr = adverse_move / atr_value
+        worst_dd = max(worst_dd, drawdown_atr)
+        total_dd += drawdown_atr
+
+        if (signal == 'buy' and pos_side == 'buy') or (signal == 'sell' and pos_side == 'sell'):
+            same_direction_dd = max(same_direction_dd, drawdown_atr)
+        else:
+            opposite_direction_dd = max(opposite_direction_dd, drawdown_atr)
+
+    return same_direction_dd, opposite_direction_dd, worst_dd, total_dd
+
+
 def confirm_with_micro_momentum(
     symbol: str,
     signal: str,
     regime: str,
     atr_value: float | None,
     reference_price: float | None,
+    open_positions: list | None = None,
 ) -> tuple[bool, float, float, bool, bool]:
     """Use micro timeframe momentum bias to refine entries."""
     if not ENABLE_MICRO_MOMENTUM_CONFIRMATION:
@@ -899,14 +1064,30 @@ def confirm_with_micro_momentum(
             threshold *= 0.85
         threshold = max(MICRO_MOMENTUM_MIN_THRESHOLD, threshold)
 
+        same_dir_dd_atr, opposite_dir_dd_atr, worst_dd_atr, total_dd_atr = _calculate_drawdown_pressure_atr(
+            open_positions,
+            atr_value,
+            signal,
+        )
+        drawdown_pressure_atr = same_dir_dd_atr if same_dir_dd_atr > 0 else opposite_dir_dd_atr
+
+        if drawdown_pressure_atr > 0:
+            relaxation_multiplier = max(0.25, 1.0 - min(2.0, drawdown_pressure_atr) * DRAWDOWN_RELAXATION_PER_ATR)
+            if relaxation_multiplier < 1.0:
+                threshold *= relaxation_multiplier
+
         soft_pass = False
         aligned_momentum = momentum_score if signal == 'buy' else -momentum_score
         tolerance = threshold * AGGRESSIVE_MICRO_TOLERANCE
+        if drawdown_pressure_atr > 0:
+            tolerance *= 1.0 + min(0.6, drawdown_pressure_atr * 0.3)
         alignment_ratio = AGGRESSIVE_MICRO_MIN_RATIO
         if regime == 'VOLATILE':
             alignment_ratio *= 0.5
         elif regime == 'RANGING':
             alignment_ratio *= 0.75
+        if drawdown_pressure_atr > 0:
+            alignment_ratio *= max(0.4, 1.0 - min(1.5, drawdown_pressure_atr) * 0.2)
         alignment_ratio = max(0.05, alignment_ratio)
         required_alignment = threshold * alignment_ratio
 
@@ -922,6 +1103,14 @@ def confirm_with_micro_momentum(
             elif momentum_score <= -threshold * MICRO_MOMENTUM_SOFT_PASS_RATIO:
                 soft_pass = True
                 return True, float(momentum_score), threshold, soft_pass, override_used
+
+        if drawdown_pressure_atr >= DRAWDOWN_OVERRIDE_ATR and aligned_momentum >= -tolerance:
+            soft_pass = True
+            override_used = True
+            print(
+                f"🩹 {symbol}: Drawdown override for {signal.upper()} (pressure {drawdown_pressure_atr:.2f} ATR, momentum {aligned_momentum:+.2%} within tolerance)."
+            )
+            return True, float(momentum_score), threshold, soft_pass, override_used
 
         if AGGRESSIVE_MODE and regime in ('TRENDING', 'VOLATILE'):
             if aligned_momentum >= required_alignment:
@@ -1004,37 +1193,57 @@ def should_limit_correlation_exposure(symbol: str, signal: str) -> tuple[bool, f
         if not correlated_positions:
             return False, 1.0  # No correlation limits
         
-        # Count positions in same direction (could amplify moves)
-        same_direction_count = 0
+        group_stats: dict[str, dict[str, float]] = {}
         for pos in correlated_positions:
+            group = pos.get('group')
+            if not group:
+                continue
+            stats = group_stats.setdefault(group, {'same': 0, 'opposite': 0, 'total': 0})
+            stats['total'] += 1
             if pos['type'] == signal:
-                same_direction_count += 1
-        
-        total_correlated = len(correlated_positions)
-        
-        opposite_direction_count = total_correlated - same_direction_count
+                stats['same'] += 1
+            else:
+                stats['opposite'] += 1
 
-        # Apply limits based on correlation exposure
-        if same_direction_count >= MAX_CORRELATED_POSITIONS:
-            print(
-                f"🔗 {symbol}: Blocking trade - {same_direction_count} same-direction correlated positions already open "
-                f"(limit {MAX_CORRELATED_POSITIONS})."
-            )
-            return True, 0.0  # Block the trade
+        block_reasons: list[tuple[str, dict[str, float], dict[str, float]]] = []
+        scale_reasons: list[tuple[str, dict[str, float], dict[str, float]]] = []
 
-        if total_correlated >= MAX_CORRELATED_POSITIONS:
-            net_bias = same_direction_count - opposite_direction_count
-            print(
-                f"🔗 {symbol}: High correlated exposure ({total_correlated}/{MAX_CORRELATED_POSITIONS}); net bias {net_bias:+d}. "
-                f"Scaling position by {CORRELATION_POSITION_LIMIT:.0%}."
-            )
-            return False, CORRELATION_POSITION_LIMIT  # Allow trade but size down
+        for group, stats in group_stats.items():
+            limits = CORRELATION_GROUP_LIMITS.get(group, DEFAULT_CORRELATION_LIMITS)
+            if stats['same'] >= limits['max_same_direction']:
+                block_reasons.append((group, stats, limits))
+            elif stats['total'] >= limits['max_total']:
+                scale_reasons.append((group, stats, limits))
+            elif stats['same'] > 0:
+                # Still scale down if we already have exposure in the same direction
+                scale_reasons.append((group, stats, limits))
 
-        if same_direction_count >= 1:
-            print(f"🔗 {symbol}: Reducing position size - {same_direction_count} same-direction correlated positions")
-            return False, CORRELATION_POSITION_LIMIT  # Reduce position size
+        if block_reasons:
+            for group, stats, limits in block_reasons:
+                print(
+                    f"🔗 {symbol}: Blocking trade - {stats['same']} same-direction positions in {group} "
+                    f"(limit {limits['max_same_direction']})."
+                )
+            return True, 0.0
 
-        print(f"🔗 {symbol}: Correlation check OK - {total_correlated} correlated positions, different directions")
+        if scale_reasons:
+            size_multiplier = 1.0
+            strongest_reason = None
+            for group, stats, limits in scale_reasons:
+                size_multiplier = min(size_multiplier, limits['size_multiplier'])
+                if strongest_reason is None or limits['size_multiplier'] < strongest_reason[2]['size_multiplier']:
+                    strongest_reason = (group, stats, limits)
+
+            if strongest_reason:
+                group, stats, limits = strongest_reason
+                net_bias = stats['same'] - stats['opposite']
+                print(
+                    f"🔗 {symbol}: Correlation exposure in {group} ({stats['total']}/{limits['max_total']} total, {stats['same']} same-direction, net bias {net_bias:+.0f}). "
+                    f"Scaling position by {size_multiplier:.0%}."
+                )
+            return False, size_multiplier
+
+        print(f"🔗 {symbol}: Correlation check OK - diversified exposure across correlated groups")
         return False, 1.0  # Normal position size
             
     except Exception as e:
@@ -1042,7 +1251,13 @@ def should_limit_correlation_exposure(symbol: str, signal: str) -> tuple[bool, f
         return False, 1.0  # Default to allow if error
 
 
-def evaluate_pyramiding(symbol: str, signal: str, positions: list, candidate_confidence: float) -> tuple[bool, float, str]:
+def evaluate_pyramiding(
+    symbol: str,
+    signal: str,
+    positions: list,
+    candidate_confidence: float,
+    atr_value: float | None = None,
+) -> tuple[bool, float, str]:
     """Determine whether we can stack another position in the same direction."""
     if not PYRAMID_ENABLED:
         return False, 1.0, "pyramiding disabled"
@@ -1068,8 +1283,50 @@ def evaluate_pyramiding(symbol: str, signal: str, positions: list, candidate_con
     if losing_leg and len(same_direction_positions) >= PYRAMID_MAX_LOSING_POSITIONS:
         return False, 1.0, "losing stack limit reached"
 
-    risk_boost = PYRAMID_LOSING_RISK_BOOST if losing_leg else PYRAMID_WINNING_RISK_BOOST
-    rationale = "averaging into drawdown" if losing_leg else "scaling a winner"
+    drawdown_same, drawdown_opposite, worst_drawdown_atr, total_drawdown_atr = _calculate_drawdown_pressure_atr(
+        positions,
+        atr_value,
+        signal,
+    )
+    drawdown_pressure = drawdown_same if drawdown_same > 0 else max(drawdown_opposite, worst_drawdown_atr * 0.5)
+
+    confidence_bonus = max(0.0, candidate_confidence - PYRAMID_MIN_CONFIDENCE)
+    stack_load_ratio = len(same_direction_positions) / max(1, PYRAMID_MAX_ENTRIES_PER_SIDE)
+
+    if losing_leg:
+        base_scale = PYRAMID_LOSING_RISK_BOOST
+        drawdown_scale = max(0.55, 1.0 - min(2.5, drawdown_pressure) * 0.2)
+        risk_boost = base_scale * drawdown_scale
+        rationale = "averaging into drawdown"
+        if drawdown_pressure > 0:
+            rationale += f" ({drawdown_pressure:.2f} ATR adverse)"
+    else:
+        base_scale = PYRAMID_WINNING_RISK_BOOST
+        confidence_scale = 1.0 + min(0.35, confidence_bonus * 0.5)
+        risk_boost = base_scale * confidence_scale
+        rationale = "scaling a winner"
+        if confidence_bonus > 0:
+            rationale += f" (confidence +{confidence_bonus:.2f})"
+
+    stack_scale = max(0.6, 1.0 - stack_load_ratio * 0.25)
+    risk_boost *= stack_scale
+    if stack_load_ratio > 0:
+        rationale += f", stack {len(same_direction_positions)}/{PYRAMID_MAX_ENTRIES_PER_SIDE}"
+
+    correlation_block, correlation_multiplier = should_limit_correlation_exposure(symbol, signal)
+    if correlation_block:
+        return False, 1.0, "correlation limit"
+
+    if correlation_multiplier < 1.0:
+        risk_boost *= correlation_multiplier
+        rationale += f", correlation {correlation_multiplier:.0%}"
+
+    if drawdown_pressure > 0 and not losing_leg:
+        mitigation_scale = max(0.7, 1.0 - min(2.0, drawdown_pressure) * 0.15)
+        risk_boost *= mitigation_scale
+        rationale += f", drawdown guard {mitigation_scale:.0%}"
+
+    risk_boost = max(0.5, min(risk_boost, RISK_MULTIPLIER_MAX))
     return True, risk_boost, rationale
 
 
@@ -1720,6 +1977,11 @@ try:
         else:
             print("💼 Account snapshot unavailable (mt5.account_info() returned None).")
 
+        soft_guard_status = evaluate_soft_guard(
+            getattr(account_info, 'balance', None) if account_info else None,
+            getattr(account_info, 'equity', None) if account_info else None,
+        )
+
         active_positions = mt5.positions_get() or []
         if active_positions:
             position_summary: dict[str, dict[str, float]] = defaultdict(lambda: {'count': 0, 'buy': 0.0, 'sell': 0.0, 'pnl': 0.0})
@@ -1763,11 +2025,16 @@ try:
         else:
             print("⚠️  Account equity unavailable; keeping previous risk guard snapshot.")
 
-        guard_trading_allowed = risk_guard_allow_trade()
+        risk_guard_allowed = risk_guard_allow_trade()
         guard_factor = risk_guard_drawdown_factor()
+        soft_guard_allowed = not bool(soft_guard_status.get("blocked", False))
+        soft_guard_factor = float(soft_guard_status.get("throttle", 1.0) or 1.0)
+        combined_guard_factor = guard_factor * (soft_guard_factor if soft_guard_allowed else 0.0)
+        guard_trading_allowed = risk_guard_allowed and soft_guard_allowed
+
         if not RISK_GUARD_ENABLED:
             print("🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.")
-        elif not guard_trading_allowed:
+        elif not risk_guard_allowed:
             daily_dd = float(risk_guard_state.get("daily_drawdown", 0.0))
             weekly_dd = float(risk_guard_state.get("weekly_drawdown", 0.0))
             print(f"🛑 Risk guard: blocking new entries (daily DD {daily_dd:.1%}, weekly DD {weekly_dd:.1%}).")
@@ -1775,6 +2042,21 @@ try:
             daily_dd = float(risk_guard_state.get("daily_drawdown", 0.0))
             weekly_dd = float(risk_guard_state.get("weekly_drawdown", 0.0))
             print(f"🛡️ Risk guard moderation: scaling risk to {guard_factor:.0%} (daily DD {daily_dd:.1%}, weekly DD {weekly_dd:.1%}).")
+
+        if SOFT_GUARD_ENABLED:
+            transition = soft_guard_status.get("transition")
+            soft_dd = float(soft_guard_status.get("drawdown", 0.0) or 0.0)
+            if transition:
+                t_type = transition.get("type")
+                if t_type == "block":
+                    print(f"🩸 Soft equity guard: blocking new entries (DD {soft_dd:.1%} of balance).")
+                elif t_type == "resume":
+                    print(f"✅ Soft equity guard: trading resumed (DD {soft_dd:.1%} of balance).")
+                elif t_type == "throttle":
+                    throttle_val = float(transition.get("value", soft_guard_factor))
+                    print(f"🩹 Soft equity guard: throttling risk to {throttle_val:.0%} (DD {soft_dd:.1%}).")
+            elif not soft_guard_allowed:
+                print(f"🩸 Soft equity guard: blocking new entries (DD {soft_dd:.1%} of balance).")
         
         for symbol in symbols:
             cycle_stats['symbols_total'] += 1
@@ -1914,6 +2196,7 @@ try:
                         current_regime,
                         strategy_atr_value,
                         reference_price,
+                        positions,
                     )
                     if not micro_pass:
                         if strategy_key == 'mean_reversion' and current_regime == 'RANGING':
@@ -1946,7 +2229,7 @@ try:
                         if micro_soft:
                             qualifiers.append("soft confirm")
                         if micro_override:
-                            qualifiers.append("aggressive override")
+                            qualifiers.append("override")
                         qualifier_text = f" ({', '.join(qualifiers)})" if qualifiers else ""
                         print(
                             f"🎯 {symbol} {strategy_name}: Micro momentum aligned {micro_score:+.2%} {comparator} {threshold_display:.2%}{qualifier_text}"
@@ -1974,7 +2257,7 @@ try:
                     session_priority,
                     regime_weight,
                     performance_weight,
-                    guard_factor,
+                    combined_guard_factor,
                     signal,
                     micro_momentum_score,
                     micro_momentum_threshold,
@@ -2018,7 +2301,13 @@ try:
                 if not guard_trading_allowed:
                     cycle_stats['symbols_blocked_guard'] += 1
                     cycle_stats['signals_skipped_guard'] += len(all_candidates)
-                    print(f"{symbol}: Risk guard active, skipping {len(all_candidates)} candidate signals this cycle.")
+                    if not risk_guard_allowed and not soft_guard_allowed:
+                        reason = "risk + soft guard"
+                    elif not risk_guard_allowed:
+                        reason = "risk guard"
+                    else:
+                        reason = "soft guard"
+                    print(f"{symbol}: Guard active ({reason}), skipping {len(all_candidates)} candidate signals this cycle.")
                     continue
                 # Pick the highest confidence signal, tie-breaker by priority
                 best_candidate = max(all_candidates, key=lambda c: (c['confidence'], -c['priority']))
@@ -2034,6 +2323,7 @@ try:
                             'buy',
                             positions,
                             best_candidate['confidence'],
+                            strategy_atr_value,
                         )
                         if allow_stack:
                             stacked_multiplier = min(
@@ -2082,6 +2372,7 @@ try:
                             'sell',
                             positions,
                             best_candidate['confidence'],
+                            strategy_atr_value,
                         )
                         if allow_stack:
                             stacked_multiplier = min(
@@ -2141,6 +2432,7 @@ try:
             f"disabled {cycle_stats['strategies_disabled_regime']} | no-signal {cycle_stats['strategies_no_signal']} | "
             f"ATR-missing {cycle_stats['strategies_skipped_atr']} | micro-overrides {cycle_stats['micro_overrides']} | micro-confirms {cycle_stats['micro_confirms']}"
         )
-        time.sleep(300)  # Wait 5 minutes
+        print(f"⏱️ Next scan in {SCAN_INTERVAL_SECONDS} seconds...")
+        time.sleep(SCAN_INTERVAL_SECONDS)
 finally:
     mt5.shutdown()
