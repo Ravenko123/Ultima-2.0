@@ -356,7 +356,7 @@ RESPECT_STOPS_LEVEL = True  # Enforce broker minimal stop distance if provided
 ALLOW_HEDGING = False  # When False, wait for existing positions to close before taking opposite trades
 
 # Enhanced risk management
-ACCOUNT_RISK_PER_TRADE = 0.22  # Aggressive base risk per trade for account flipping mode
+ACCOUNT_RISK_PER_TRADE = 0.12  # Reduced base risk to balance fast growth with capital protection
 MIN_LOT_SIZE = 0.01  # Minimum position size
 MAX_LOT_SIZE = 5.0   # Maximum position size cap
 
@@ -367,7 +367,8 @@ RISK_MULTIPLIER_MAX = 3.5
 # Aggressive mode tuning
 AGGRESSIVE_MODE = True
 AGGRESSIVE_REGIME_THRESHOLD = 0.05  # Minimal regime weight still allowed when aggressive
-AGGRESSIVE_MICRO_TOLERANCE = 0.4    # Allow small counter-momentum within 40% of threshold
+AGGRESSIVE_MICRO_TOLERANCE = 0.25   # Allow counter-momentum within 25% of threshold
+AGGRESSIVE_MICRO_MIN_RATIO = 0.25   # Require at least 25% of base threshold in the trade direction
 HIGH_CONFIDENCE_BOOST_CAP = 1.5     # Max boost applied when confidence is exceptional
 
 # Trade quality filters
@@ -857,16 +858,17 @@ def confirm_with_micro_momentum(
     regime: str,
     atr_value: float | None,
     reference_price: float | None,
-) -> tuple[bool, float, float, bool]:
+) -> tuple[bool, float, float, bool, bool]:
     """Use micro timeframe momentum bias to refine entries."""
     if not ENABLE_MICRO_MOMENTUM_CONFIRMATION:
-        return True, 0.0, 0.0, False
+        return True, 0.0, 0.0, False, False
 
     try:
+        override_used = False
         request_count = MICRO_MOMENTUM_LOOKBACK + 3
         rates = mt5.copy_rates_from_pos(symbol, MICRO_MOMENTUM_TIMEFRAME, 0, request_count)
         if rates is None or len(rates) < MICRO_MOMENTUM_LOOKBACK + 2:
-            return True, 0.0, 0.0, False  # Skip if insufficient data
+            return True, 0.0, 0.0, False, False  # Skip if insufficient data
 
         df = pd.DataFrame(rates)
         close = df['close'].astype(float)
@@ -874,7 +876,7 @@ def confirm_with_micro_momentum(
         momentum_score = momentum_series.iloc[-1]
 
         if pd.isna(momentum_score):
-            return True, 0.0, 0.0, False
+            return True, 0.0, 0.0, False, False
 
         # Derive adaptive threshold based on ATR and market regime
         threshold = MICRO_MOMENTUM_BASE_THRESHOLD
@@ -892,32 +894,36 @@ def confirm_with_micro_momentum(
         soft_pass = False
         aligned_momentum = momentum_score if signal == 'buy' else -momentum_score
         tolerance = threshold * AGGRESSIVE_MICRO_TOLERANCE
+        required_alignment = threshold * AGGRESSIVE_MICRO_MIN_RATIO
 
         if signal == 'buy':
             if momentum_score >= threshold:
-                return True, float(momentum_score), threshold, soft_pass
+                return True, float(momentum_score), threshold, soft_pass, override_used
             elif momentum_score >= threshold * MICRO_MOMENTUM_SOFT_PASS_RATIO:
                 soft_pass = True
-                return True, float(momentum_score), threshold, soft_pass
+                return True, float(momentum_score), threshold, soft_pass, override_used
         else:
             if momentum_score <= -threshold:
-                return True, float(momentum_score), threshold, soft_pass
+                return True, float(momentum_score), threshold, soft_pass, override_used
             elif momentum_score <= -threshold * MICRO_MOMENTUM_SOFT_PASS_RATIO:
                 soft_pass = True
-                return True, float(momentum_score), threshold, soft_pass
+                return True, float(momentum_score), threshold, soft_pass, override_used
 
         if AGGRESSIVE_MODE and regime in ('TRENDING', 'VOLATILE'):
-            if aligned_momentum >= -tolerance:
+            if aligned_momentum >= required_alignment:
                 soft_pass = True
+                override_used = True
+                tolerance_pct = f"±{tolerance:.2%}"
+                required_pct = f"≥ {required_alignment:.2%}" if signal == 'buy' else f"≤ {-required_alignment:.2%}"
                 print(
-                    f"⚡ {symbol}: Aggressive micro override for {signal} (aligned {aligned_momentum:+.2%} vs tolerance {-tolerance:.2%})."
+                    f"⚡ {symbol}: Aggressive micro override for {signal.upper()} (aligned {aligned_momentum:+.2%} within tolerance {tolerance_pct}, required {required_pct})."
                 )
-                return True, float(momentum_score), threshold, soft_pass
+                return True, float(momentum_score), threshold, soft_pass, override_used
 
-        return False, float(momentum_score), threshold, soft_pass
+        return False, float(momentum_score), threshold, soft_pass, override_used
     except Exception as e:
         print(f"Error computing micro momentum for {symbol}: {e}")
-        return True, 0.0, MICRO_MOMENTUM_MIN_THRESHOLD, False
+        return True, 0.0, MICRO_MOMENTUM_MIN_THRESHOLD, False, False
 
 
 def get_instrument_session_priority(symbol: str, session: str) -> int:
@@ -990,18 +996,30 @@ def should_limit_correlation_exposure(symbol: str, signal: str) -> tuple[bool, f
         
         total_correlated = len(correlated_positions)
         
+        opposite_direction_count = total_correlated - same_direction_count
+
         # Apply limits based on correlation exposure
-        if total_correlated >= MAX_CORRELATED_POSITIONS:
-            print(f"🔗 {symbol}: Blocking trade - too many correlated positions ({total_correlated}/{MAX_CORRELATED_POSITIONS})")
+        if same_direction_count >= MAX_CORRELATED_POSITIONS:
+            print(
+                f"🔗 {symbol}: Blocking trade - {same_direction_count} same-direction correlated positions already open "
+                f"(limit {MAX_CORRELATED_POSITIONS})."
+            )
             return True, 0.0  # Block the trade
-        
-        elif same_direction_count >= 1:
+
+        if total_correlated >= MAX_CORRELATED_POSITIONS:
+            net_bias = same_direction_count - opposite_direction_count
+            print(
+                f"🔗 {symbol}: High correlated exposure ({total_correlated}/{MAX_CORRELATED_POSITIONS}); net bias {net_bias:+d}. "
+                f"Scaling position by {CORRELATION_POSITION_LIMIT:.0%}."
+            )
+            return False, CORRELATION_POSITION_LIMIT  # Allow trade but size down
+
+        if same_direction_count >= 1:
             print(f"🔗 {symbol}: Reducing position size - {same_direction_count} same-direction correlated positions")
             return False, CORRELATION_POSITION_LIMIT  # Reduce position size
-        
-        else:
-            print(f"🔗 {symbol}: Correlation check OK - {total_correlated} correlated positions, different directions")
-            return False, 1.0  # Normal position size
+
+        print(f"🔗 {symbol}: Correlation check OK - {total_correlated} correlated positions, different directions")
+        return False, 1.0  # Normal position size
             
     except Exception as e:
         print(f"Error in correlation check: {e}")
@@ -1820,13 +1838,14 @@ try:
                     cycle_stats['strategies_no_signal'] += 1
                     print(
                         f"ℹ️ {symbol} {strategy_name}: No actionable signal (raw={signal}) | "
-                        f"regime weight {regime_weight:.1%}, performance {performance_weight:.2f}x, adj priority {regime_adjusted_priority:.1f}"
+                        f"regime weight {regime_weight:.1%} | performance {performance_weight:.2f}× | adj priority {regime_adjusted_priority:.1f}"
                     )
                     continue
                 
                 micro_momentum_score = None
                 micro_momentum_threshold = None
                 micro_soft_pass = False
+                micro_override = False
                 
                 # Multi-timeframe confirmation
                 if signal in ('buy', 'sell'):
@@ -1842,7 +1861,7 @@ try:
                         print(f"✅ {symbol} {strategy_name}: Signal {signal} confirmed by MTF (H1 bias: {mtf_bias})")
 
                     reference_price = float(df['close'].iloc[-1]) if not df['close'].empty else None
-                    micro_pass, micro_score, micro_threshold, micro_soft = confirm_with_micro_momentum(
+                    micro_pass, micro_score, micro_threshold, micro_soft, micro_override = confirm_with_micro_momentum(
                         symbol,
                         signal,
                         current_regime,
@@ -1851,30 +1870,57 @@ try:
                     )
                     if not micro_pass:
                         if strategy_key == 'mean_reversion' and current_regime == 'RANGING':
-                            print(f"🎯 {symbol} {strategy_name}: Micro momentum counter-trend ({micro_score:+.2%} vs {micro_threshold:.2%}); allowing fade entry in range.")
+                            required_threshold = micro_threshold if signal == 'buy' else -micro_threshold
+                            print(
+                                f"🎯 {symbol} {strategy_name}: Micro momentum counter-trend ({micro_score:+.2%} vs required {required_threshold:.2%}); allowing fade entry in range."
+                            )
                             micro_momentum_score = None
                             micro_momentum_threshold = None
                             micro_soft_pass = True
                             cycle_stats['micro_overrides'] += 1
                         else:
-                            print(f"🎯 {symbol} {strategy_name}: Signal {signal} rejected by micro momentum ({micro_score:+.2%} vs {micro_threshold:.2%})")
+                            required_threshold = micro_threshold if signal == 'buy' else -micro_threshold
+                            comparator = "≥" if signal == 'buy' else "≤"
+                            print(
+                                f"🎯 {symbol} {strategy_name}: Signal {signal} rejected by micro momentum ({micro_score:+.2%} vs required {comparator} {required_threshold:.2%})"
+                            )
                             cycle_stats['signals_filtered_micro'] += 1
                             continue
                     else:
                         micro_momentum_score = micro_score
                         micro_momentum_threshold = micro_threshold
                         micro_soft_pass = micro_soft
-                        softness_text = " (soft confirm)" if micro_soft else ""
-                        print(f"🎯 {symbol} {strategy_name}: Micro momentum aligned {micro_score:+.2%} ≥ {micro_threshold:.2%}{softness_text}")
+                        threshold_display = micro_momentum_threshold
+                        comparator = "≥"
+                        if signal == 'sell':
+                            comparator = "≤"
+                            threshold_display = -micro_momentum_threshold
+                        qualifiers = []
+                        if micro_soft:
+                            qualifiers.append("soft confirm")
+                        if micro_override:
+                            qualifiers.append("aggressive override")
+                        qualifier_text = f" ({', '.join(qualifiers)})" if qualifiers else ""
+                        print(
+                            f"🎯 {symbol} {strategy_name}: Micro momentum aligned {micro_score:+.2%} {comparator} {threshold_display:.2%}{qualifier_text}"
+                        )
+                        if micro_override:
+                            cycle_stats['micro_overrides'] += 1
                         cycle_stats['micro_confirms'] += 1
                 
                 if micro_momentum_score is not None:
-                    softness_text = " soft" if micro_soft_pass else ""
-                    micro_text = f", micro {micro_momentum_score:+.2%}/{micro_momentum_threshold:.2%}{softness_text}"
-                    if micro_momentum_threshold:
-                        aligned = micro_momentum_score if signal == 'buy' else -micro_momentum_score
-                        if aligned < 0:
-                            cycle_stats['micro_overrides'] += 1
+                    qualifiers = []
+                    if micro_soft_pass:
+                        qualifiers.append("soft")
+                    if micro_override:
+                        qualifiers.append("override")
+                    qualifier_suffix = f" ({'/'.join(qualifiers)})" if qualifiers else ""
+                    threshold_display = micro_momentum_threshold
+                    if signal == 'sell':
+                        threshold_display = -micro_momentum_threshold
+                    micro_text = (
+                        f", micro {micro_momentum_score:+.2%}/{threshold_display:.2%}{qualifier_suffix}"
+                    )
                 else:
                     micro_text = ""
                 confidence = calculate_signal_confidence(
@@ -1899,7 +1945,7 @@ try:
                     signal = None
 
                 print(
-                    f"{symbol} {strategy_name} Final Signal: {signal} (regime: {regime_weight:.1%}, performance: {performance_weight:.2f}x, adj priority: {regime_adjusted_priority:.1f}, confidence {confidence:.2f}, risk base x{base_risk_multiplier:.2f} → x{risk_multiplier:.2f}, ATR({atr_period_override})={strategy_atr_value:.6f}{micro_text})"
+                    f"{symbol} {strategy_name} Final Signal: {signal} (regime: {regime_weight:.1%}, performance: {performance_weight:.2f}×, adj priority: {regime_adjusted_priority:.1f}, confidence {confidence:.2f}, risk base x{base_risk_multiplier:.2f} → x{risk_multiplier:.2f}, ATR({atr_period_override})={strategy_atr_value:.6f}{micro_text})"
                 )
 
                 if signal in ('buy', 'sell'):
@@ -1982,7 +2028,7 @@ try:
                         f"- beaten by {best_candidate['label']} (conf {best_candidate['confidence']:.2f}, priority {best_candidate['priority']})"
                     )
         print(
-            "📒 Scan #{scan_counter} summary -> "
+            f"📒 Scan #{scan_counter} summary -> "
             f"symbols processed {cycle_stats['symbols_total']}/{len(symbols)} | "
             f"open-symbols {cycle_stats['symbols_with_open_positions']} | "
             f"candidates {cycle_stats['candidates_total']} | executed {cycle_stats['signals_executed']} | "
