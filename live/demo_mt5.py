@@ -534,7 +534,9 @@ def get_strategy_performance_weight(strategy_name: str, symbol: str) -> float:
         return 1.0  # Neutral performance
 
 # Settings
-symbols = ["EURUSD+", "USDJPY+", "GBPUSD+", "GBPJPY+", "XAUUSD+"]
+WEEKDAY_SYMBOLS: list[str] = ["EURUSD+", "USDJPY+", "GBPUSD+", "GBPJPY+", "XAUUSD+"]
+WEEKEND_SYMBOLS: list[str] = ["BTCUSD"]
+ALL_SYMBOLS: tuple[str, ...] = tuple(dict.fromkeys(WEEKDAY_SYMBOLS + WEEKEND_SYMBOLS))
 timeframe = mt5.TIMEFRAME_M15
 bars = 100  # Number of bars to fetch
 
@@ -560,12 +562,37 @@ ACCOUNT_RISK_PER_TRADE = 0.12  # Reduced base risk to balance fast growth with c
 MIN_LOT_SIZE = 0.01  # Minimum position size
 MAX_LOT_SIZE = 5.0   # Maximum position size cap
 
+# Broker-specific cost assumptions (Vantage RAW)
+BROKER_COMMISSION_PER_LOT = 6.0  # Round-turn commission per 1.0 lot in account currency
+SYMBOL_COMMISSION_OVERRIDES: dict[str, float] = {
+    # e.g. "XAUUSD+": 12.0,  # Override if the broker charges different commission for metals
+    "BTCUSD": 0.0,
+}
+
+# Broker execution preferences (Vantage RAW)
+BROKER_PREFERRED_FILLINGS: tuple[int, ...] = tuple(
+    filter(
+        None,
+        (
+            getattr(mt5, "ORDER_FILLING_IOC", None),
+            getattr(mt5, "ORDER_FILLING_FOK", None),
+            getattr(mt5, "ORDER_FILLING_RETURN", None),
+        ),
+    )
+)
+BROKER_ORDER_DEVIATION = 8  # Allowed price deviation in points for raw-spread fills
+LOG_SPREAD_TELEMETRY = True
+
+# Weekend crypto trading configuration
+ENABLE_WEEKEND_CRYPTO = True
+CRYPTO_WEEKEND_SESSION_NAME = "Crypto Weekend"
+
 # Dynamic risk multiplier bounds
 RISK_MULTIPLIER_MIN = 1.0
 RISK_MULTIPLIER_MAX = 3.5
 
 # Scan cadence configuration
-SCAN_INTERVAL_SECONDS = 120       # Time between scan loops (seconds)
+SCAN_INTERVAL_SECONDS = 60        # Time between scan loops (seconds)
 
 # Soft drawdown guard (still aggressive but avoids death spirals)
 SOFT_GUARD_ENABLED = True
@@ -655,21 +682,21 @@ def get_account_equity_quiet() -> float:
         return 0.0
 
 
-def is_market_session_active() -> bool:
+def is_market_session_active(active_symbols: list[str] | None = None) -> bool:
     """Check if we're in an active trading session (avoid low-liquidity periods)."""
     try:
         # Get current UTC time
         now_utc = datetime.now(pytz.UTC)
         current_hour = now_utc.hour
         current_weekday = now_utc.weekday()  # 0=Monday, 6=Sunday
-        
-        # Avoid weekends (Friday 22:00 UTC to Sunday 22:00 UTC)
-        if current_weekday == 6:  # Sunday
-            return current_hour >= 22  # Only after 22:00 UTC (Sydney open)
-        elif current_weekday == 5:  # Saturday
-            return False  # No trading on Saturday
-        elif current_weekday == 4 and current_hour >= 22:  # Friday after 22:00 UTC
-            return False  # Weekend starts
+
+        if is_weekend_trading_window(now_utc):
+            if not ENABLE_WEEKEND_CRYPTO:
+                return False
+            if not active_symbols:
+                return False
+            crypto_only = all(symbol in WEEKEND_SYMBOLS for symbol in active_symbols)
+            return crypto_only
         
         # Active trading sessions (UTC times):
         # Sydney: 22:00-07:00 UTC
@@ -698,6 +725,8 @@ def get_session_info() -> str:
     try:
         now_utc = datetime.now(pytz.UTC)
         hour = now_utc.hour
+        if ENABLE_WEEKEND_CRYPTO and is_weekend_trading_window(now_utc):
+            return CRYPTO_WEEKEND_SESSION_NAME
         
         if 22 <= hour or hour < 7:
             return "Sydney/Tokyo"
@@ -711,6 +740,51 @@ def get_session_info() -> str:
             return "Dead Zone"
     except Exception:
         return "Unknown"
+
+
+def is_weekend_trading_window(now_utc: datetime | None = None) -> bool:
+    if now_utc is None:
+        now_utc = datetime.now(pytz.UTC)
+    weekday = now_utc.weekday()
+    hour = now_utc.hour
+    if weekday == 5:
+        return True
+    if weekday == 6:
+        return hour < 22
+    if weekday == 4:
+        return hour >= 22
+    return False
+
+
+def get_active_symbols(now_utc: datetime | None = None) -> list[str]:
+    if ENABLE_WEEKEND_CRYPTO and is_weekend_trading_window(now_utc):
+        return WEEKEND_SYMBOLS.copy()
+    return WEEKDAY_SYMBOLS.copy()
+
+
+def log_cycle_summary(active_symbols: list[str], cycle_stats: dict[str, int], scan_counter: int) -> None:
+    total_symbols = len(active_symbols)
+    print(
+        f"📒 Scan #{scan_counter} summary -> "
+        f"symbols processed {cycle_stats['symbols_total']}/{total_symbols} | "
+        f"open-symbols {cycle_stats['symbols_with_open_positions']} | "
+        f"candidates {cycle_stats['candidates_total']} | executed {cycle_stats['signals_executed']} | pyramids {cycle_stats['signals_executed_pyramid']} | "
+        f"confidence-filtered {cycle_stats['signals_filtered_confidence']} | micro-filtered {cycle_stats['signals_filtered_micro']} | "
+        f"position-blocked {cycle_stats['signals_skipped_position_conflict']} | duplicates {cycle_stats['signals_skipped_duplicate_side']} | guard-blocked {cycle_stats['signals_skipped_guard']} | "
+        f"counter-exits {cycle_stats['counter_signal_exits']}"
+    )
+    print(
+        "🛠️ Stop management -> "
+        f"breakeven {cycle_stats['stops_breakeven']} | trailing {cycle_stats['stops_trailing']} | "
+        f"partials {cycle_stats['partials_taken']} | partial-missed {cycle_stats['partials_unavailable']} | "
+        f"adjustment-fails {cycle_stats['stops_failed'] + cycle_stats['partials_failed']}"
+    )
+    print(
+        "📊 Strategy diagnostics -> "
+        f"disabled {cycle_stats['strategies_disabled_regime']} | no-signal {cycle_stats['strategies_no_signal']} | "
+        f"ATR-missing {cycle_stats['strategies_skipped_atr']} | micro-overrides {cycle_stats['micro_overrides']} | micro-confirms {cycle_stats['micro_confirms']}"
+    )
+    print(f"⏱️ Next scan in {SCAN_INTERVAL_SECONDS} seconds...")
 
 
 # Instrument-specific session priorities (based on underlying market activity)
@@ -744,6 +818,13 @@ INSTRUMENT_SESSION_PRIORITY = {
         "London-NY Overlap": 5, # Best: Peak institutional activity
         "New York": 4,         # Good: US market participation
         "Sydney/Tokyo": 3,     # Fair: Asian demand, but lower liquidity
+    },
+    "BTCUSD": {
+        CRYPTO_WEEKEND_SESSION_NAME: 5,  # Dedicated weekend session
+        "London": 1,                   # Deprioritize forex sessions during week
+        "London-NY Overlap": 1,
+        "New York": 1,
+        "Sydney/Tokyo": 2,             # Overnight liquidity acceptable if needed
     }
 }
 
@@ -942,6 +1023,12 @@ def manage_position_stops(symbol: str, atr_value: float) -> dict[str, int]:
         point = getattr(symbol_info, "point", 0.00001) or 1e-5
         digits = getattr(symbol_info, "digits", 5)
         min_volume = getattr(symbol_info, "volume_min", 0.01) or 0.01
+        min_stop_distance = 0.0
+        if RESPECT_STOPS_LEVEL:
+            stop_level_points = float(getattr(symbol_info, "trade_stops_level", 0) or 0.0)
+            step_points = float(getattr(symbol_info, "trade_stops_step", 0) or 0.0)
+            freeze_points = float(getattr(symbol_info, "trade_freeze_level", 0) or 0.0)
+            min_stop_distance = max(stop_level_points, step_points, freeze_points) * point
 
         positions = mt5.positions_get(symbol=symbol)
         if not positions:
@@ -974,7 +1061,17 @@ def manage_position_stops(symbol: str, atr_value: float) -> dict[str, int]:
 
             # 1. Move to breakeven after threshold profit
             if profit_atr >= BREAKEVEN_TRIGGER and (sl is None or abs(sl - breakeven_target) > point):
-                if modify_position_sl(ticket, breakeven_target):
+                distance_to_price = (
+                    (current_price - breakeven_target)
+                    if position_type == mt5.POSITION_TYPE_BUY
+                    else (breakeven_target - current_price)
+                )
+                if min_stop_distance > 0 and distance_to_price < min_stop_distance:
+                    shortfall_pts = (min_stop_distance - distance_to_price) / point if point else 0.0
+                    print(
+                        f"ℹ️ {symbol} ticket {ticket}: skipping breakeven lock (short by {shortfall_pts:.1f} pts to broker minimum)."
+                    )
+                elif modify_position_sl(ticket, breakeven_target):
                     stats["stops_breakeven"] += 1
                     old_sl_display = sl if sl is not None else 0.0
                     print(
@@ -1007,7 +1104,30 @@ def manage_position_stops(symbol: str, atr_value: float) -> dict[str, int]:
                     trail_sl = current_price + (trail_distance * atr_value)
                     should_move = sl is None or trail_sl < (sl - point)
 
+                if min_stop_distance > 0:
+                    if position_type == mt5.POSITION_TYPE_BUY:
+                        trail_sl = min(trail_sl, current_price - min_stop_distance)
+                    else:
+                        trail_sl = max(trail_sl, current_price + min_stop_distance)
+
                 trail_sl = round(trail_sl, digits)
+
+                distance_to_price = (
+                    (current_price - trail_sl)
+                    if position_type == mt5.POSITION_TYPE_BUY
+                    else (trail_sl - current_price)
+                )
+
+                if min_stop_distance > 0 and distance_to_price < min_stop_distance:
+                    print(
+                        f"ℹ️ {symbol} ticket {ticket}: trailing SL candidate too tight (gap {distance_to_price/point:.1f} pts < broker minimum)."
+                    )
+                    should_move = False
+
+                if position_type == mt5.POSITION_TYPE_BUY:
+                    should_move = should_move and (sl is None or trail_sl > (sl + point))
+                else:
+                    should_move = should_move and (sl is None or trail_sl < (sl - point))
 
                 if should_move and trail_sl > 0:
                     if modify_position_sl(ticket, trail_sl):
@@ -2143,7 +2263,7 @@ agent_dict = {
         }
         for definition in agent_definitions
     ]
-    for symbol in symbols
+    for symbol in ALL_SYMBOLS
 }
 
 def ensure_connection_ready() -> bool:
@@ -2184,12 +2304,31 @@ def prepare_symbol(symbol: str):
     return symbol_info
 
 
+def _resolve_commission(symbol_name: str | None) -> float:
+    if not symbol_name:
+        return BROKER_COMMISSION_PER_LOT
+
+    symbol_key = symbol_name
+    commission = SYMBOL_COMMISSION_OVERRIDES.get(symbol_key)
+    if commission is not None:
+        return commission
+
+    trimmed = symbol_key.rstrip("+")
+    if trimmed and trimmed != symbol_key:
+        commission = SYMBOL_COMMISSION_OVERRIDES.get(trimmed)
+        if commission is not None:
+            return commission
+
+    return BROKER_COMMISSION_PER_LOT
+
+
 def calculate_position_size(
     symbol_info,
     atr_value: float,
     sl_mult: float,
     risk_multiplier: float = 1.0,
     account_balance: float | None = None,
+    symbol: str | None = None,
 ) -> float:
     """Calculate position size based on volatility and risk management."""
     if account_balance is None or account_balance <= 0:
@@ -2215,11 +2354,15 @@ def calculate_position_size(
     ticks_at_risk = sl_distance / tick_size if tick_size else 0.0
     loss_per_unit = ticks_at_risk * tick_value
 
-    if loss_per_unit <= 0:
+    symbol_name = symbol or getattr(symbol_info, 'name', None)
+    commission_per_lot = _resolve_commission(symbol_name if isinstance(symbol_name, str) else None)
+    per_lot_cost = loss_per_unit + commission_per_lot
+
+    if per_lot_cost <= 0:
         return MIN_LOT_SIZE
 
     # Calculate optimal position size
-    optimal_size = risk_amount / loss_per_unit
+    optimal_size = risk_amount / per_lot_cost
 
     # Apply limits
     position_size = max(MIN_LOT_SIZE, min(optimal_size, MAX_LOT_SIZE))
@@ -2265,6 +2408,17 @@ def resolve_filling_type(symbol_info) -> int:
         return mapping.get(mode, default)
 
     return default
+
+
+def describe_filling_type(filling: int) -> str:
+    mapping: dict[int, str] = {}
+    if hasattr(mt5, 'ORDER_FILLING_IOC'):
+        mapping[mt5.ORDER_FILLING_IOC] = 'IOC'
+    if hasattr(mt5, 'ORDER_FILLING_FOK'):
+        mapping[mt5.ORDER_FILLING_FOK] = 'FOK'
+    if hasattr(mt5, 'ORDER_FILLING_RETURN'):
+        mapping[mt5.ORDER_FILLING_RETURN] = 'RETURN'
+    return mapping.get(filling, f'mode#{filling}')
 
 
 def sanitize_comment(comment: str | None, fallback: str = "Ultima") -> str:
@@ -2457,6 +2611,18 @@ def send_order(
     spread_points = (spread / point) if (spread is not None and point) else float('inf')
     atr_reference = atr if atr and atr > 0 else None
 
+    if spread is not None and point:
+        if atr_reference:
+            spread_ratio_snapshot = spread / atr_reference if atr_reference else None
+            print(
+                f"📉 {symbol}: Spread snapshot {spread_points:.1f} pts ({spread:.6f}) | "
+                f"Spread/ATR {spread_ratio_snapshot:.2f}"
+            )
+        else:
+            print(f"📉 {symbol}: Spread snapshot {spread_points:.1f} pts ({spread:.6f})")
+    else:
+        print(f"📉 {symbol}: Spread snapshot unavailable (tick data missing)")
+
     # Set lot size using volatility-based sizing
     if lot is None:
         # Calculate dynamic position size based on volatility
@@ -2468,6 +2634,7 @@ def send_order(
             atr_value,
             sl_mult_effective,
             risk_multiplier=bounded_multiplier,
+            symbol=symbol,
         )
         print(f"🎯 {symbol}: base lot {lot:.2f} using risk multiplier {bounded_multiplier:.2f}")
 
@@ -2548,6 +2715,8 @@ def send_order(
         print(f"{symbol} ATR={atr:.6f} | SL={sl} | TP={tp} (SLx={effective_sl_mult}, TPx={effective_tp_mult})")
 
     filling_type = resolve_filling_type(symbol_info)
+    fill_label = describe_filling_type(filling_type)
+    print(f"⚙️ {symbol}: Fill mode {fill_label}, slippage tolerance {deviation} pts")
 
     sanitized_comment = sanitize_comment(comment)
     if sanitized_comment != (comment or ""):
@@ -2679,8 +2848,19 @@ try:
         else:
             print("📂 Open positions -> none")
 
+        active_symbols = get_active_symbols(now_utc)
+        if not active_symbols:
+            print("⚪ No active symbols configured for the current session. Sleeping for 5 minutes...")
+            time.sleep(300)
+            continue
+
+        if ENABLE_WEEKEND_CRYPTO and is_weekend_trading_window(now_utc):
+            print(f"🪙 Weekend crypto mode active -> {', '.join(active_symbols)}")
+        else:
+            print(f"🎯 Symbols in scope this cycle -> {', '.join(active_symbols)}")
+
         # Check if we're in an active trading session
-        if not is_market_session_active():
+        if not is_market_session_active(active_symbols):
             session_name = get_session_info()
             print(f"⏰ Market session filter: Skipping trading during {session_name} (low liquidity period)")
             time.sleep(60)  # Wait 1 minute before checking again
@@ -2742,14 +2922,22 @@ try:
                 indicator = "🟠" if status_label == "alert" else "🟡"
                 print(f"{indicator} Soft equity guard: {status_label} mode (DD {soft_dd:.1%}, throttle {soft_guard_factor:.0%}).")
         
-        for symbol in symbols:
+        for symbol in active_symbols:
             cycle_stats['symbols_total'] += 1
             symbol_info = prepare_symbol(symbol)
             if symbol_info is None:
                 cycle_stats['symbols_failed_prepare'] += 1
                 print(f"Skipping {symbol} because symbol preparation failed.")
                 continue
-                
+
+            tick = mt5.symbol_info_tick(symbol)
+            point = getattr(symbol_info, 'point', None) or 0.0
+            spread = None
+            spread_points = None
+            if tick and point:
+                spread = max(0.0, float(tick.ask - tick.bid))
+                spread_points = spread / point if point else None
+
             # Check instrument-specific session priority
             if not should_trade_instrument_in_session(symbol):
                 session_priority = get_instrument_session_priority(symbol, session_name)
@@ -2759,16 +2947,16 @@ try:
             else:
                 session_priority = get_instrument_session_priority(symbol, session_name)
                 print(f"📊 {symbol}: Trading allowed (session priority {session_priority}/{MIN_SESSION_PRIORITY} for {session_name})")
-            
+
             # Check for news blackout periods
             is_blackout, news_reason = is_news_blackout_period(symbol)
             if is_blackout:
                 print(f"📰 {symbol}: Skipping due to news blackout - {news_reason}")
                 cycle_stats['symbols_skipped_news'] += 1
                 continue
-                
+
             today = datetime.now()
-            from_date = today - timedelta(minutes=bars*15)
+            from_date = today - timedelta(minutes=bars * 15)
             rates = mt5.copy_rates_range(symbol, timeframe, from_date, today)
             if rates is None:
                 print(f"No data for {symbol}")
@@ -2788,7 +2976,19 @@ try:
             volatility_pressure = calculate_volatility_pressure(df)
             candle_conviction = calculate_candle_conviction(df)
             print(f"{symbol} Volatility pressure: {volatility_pressure:.2f} | Candle conviction: {candle_conviction:.2f}")
-                
+
+            if spread is not None and point:
+                if atr_value and atr_value > 0:
+                    spread_ratio = spread / atr_value
+                    print(
+                        f"📉 {symbol} Spread snapshot -> {spread_points:.1f} pts ({spread:.6f}) | "
+                        f"Spread/ATR {spread_ratio:.2f}"
+                    )
+                else:
+                    print(f"📉 {symbol} Spread snapshot -> {spread_points:.1f} pts ({spread:.6f})")
+            else:
+                print(f"📉 {symbol} Spread snapshot unavailable (tick data missing)")
+
             # Detect market regime for strategy optimization
             current_regime = detect_market_regime(df)
             print(f"📊 {symbol} Market Regime: {current_regime}")
@@ -3237,27 +3437,7 @@ try:
                         f"{symbol}: skipping {candidate['label']} {candidate['signal']} (conf {candidate['confidence']:.2f}, priority {candidate['priority']}) "
                         f"- beaten by {best_candidate['label']} (conf {best_candidate['confidence']:.2f}, priority {best_candidate['priority']})"
                     )
-        print(
-            f"📒 Scan #{scan_counter} summary -> "
-            f"symbols processed {cycle_stats['symbols_total']}/{len(symbols)} | "
-            f"open-symbols {cycle_stats['symbols_with_open_positions']} | "
-            f"candidates {cycle_stats['candidates_total']} | executed {cycle_stats['signals_executed']} | pyramids {cycle_stats['signals_executed_pyramid']} | "
-            f"confidence-filtered {cycle_stats['signals_filtered_confidence']} | micro-filtered {cycle_stats['signals_filtered_micro']} | "
-            f"position-blocked {cycle_stats['signals_skipped_position_conflict']} | duplicates {cycle_stats['signals_skipped_duplicate_side']} | guard-blocked {cycle_stats['signals_skipped_guard']} | "
-            f"counter-exits {cycle_stats['counter_signal_exits']}"
-        )
-        print(
-            "🛠️ Stop management -> "
-            f"breakeven {cycle_stats['stops_breakeven']} | trailing {cycle_stats['stops_trailing']} | "
-            f"partials {cycle_stats['partials_taken']} | partial-missed {cycle_stats['partials_unavailable']} | "
-            f"adjustment-fails {cycle_stats['stops_failed'] + cycle_stats['partials_failed']}"
-        )
-        print(
-            "📊 Strategy diagnostics -> "
-            f"disabled {cycle_stats['strategies_disabled_regime']} | no-signal {cycle_stats['strategies_no_signal']} | "
-            f"ATR-missing {cycle_stats['strategies_skipped_atr']} | micro-overrides {cycle_stats['micro_overrides']} | micro-confirms {cycle_stats['micro_confirms']}"
-        )
-        print(f"⏱️ Next scan in {SCAN_INTERVAL_SECONDS} seconds...")
+        log_cycle_summary(active_symbols, cycle_stats, scan_counter)
         time.sleep(SCAN_INTERVAL_SECONDS)
 except KeyboardInterrupt:
     log_manual_stop_summary(scan_counter)

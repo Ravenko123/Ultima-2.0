@@ -91,4 +91,26 @@ This Priority 1 implementation focuses on the **highest ROI features** that will
 
 The bot is now equipped with institutional-grade features that should significantly boost profitability through intelligent market analysis and sophisticated position management.
 
+## 🏦 Broker-Specific Enhancements for Vantage RAW
+
+- **Commission-aware position sizing**: Lot sizing now subtracts the round-turn commission per symbol so risk stays aligned with ATR targets even on RAW pricing.
+- **Spread and execution telemetry**: Every scan captures spread snapshots, spread/ATR ratios, and the resolved MT5 fill mode to spot widening spreads or slippage in real time.
+- **Broker-compliant stop management**: Breakeven, trailing, and partial-stop updates now respect `trade_stops_level`, `trade_stops_step`, and `trade_freeze_level`, preventing rejected modifications on Vantage RAW accounts.
+- **Symbol overrides ready**: Per-symbol commission mappings make it easy to adapt when the broker adjusts fees.
+
+## ✅ Next Test Plan
+
+1. **Dry-run backtest replay**
+  - Confirm ATR sizing minus commissions still risks ≤ target percentage.
+  - Verify trailing/breakeven updates land outside broker stop levels.
+2. **Demo account smoke test (Vantage RAW)**
+  - Run the live loop for a full session; capture spread telemetry and ensure no `TRADE_RETCODE_INVALID_STOPS` errors.
+  - Validate partial closures trigger at 1:1 R:R with commission-adjusted lots.
+3. **Log review & telemetry audit**
+  - Inspect new spread and fill-mode logs for each fill; flag symbols consistently > 1.5× ATR spread.
+  - Update commission overrides if deltas are spotted in the log snapshots.
+4. **Go/No-Go checklist before production**
+  - Confirm strategy performance tracker still persists metrics.
+  - Ensure risk guard thresholds (soft/hard) remain untouched and trigger as expected in logs.
+
 **Status: PRIORITY 1 IMPLEMENTATION COMPLETE** ✅
