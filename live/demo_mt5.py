@@ -6,19 +6,112 @@ from agents import MeanReversionAgent, MACrossoverAgent, MomentumTrendAgent, Bre
 import time
 import re
 import json
+import sys
+import atexit
+from pathlib import Path
 from collections import defaultdict
-
 # Strategy comment registry for MT5-safe order comments
 STRATEGY_COMMENT_REGISTRY = {
     "momentum trend": ("MT", "momentum_trend"),
     "ma crossover": ("MA", "ma_crossover"),
-    "mean reversion": ("MR", "mean_reversion"),
     "breakout": ("BO", "breakout"),
     "donchian channel": ("DC", "donchian_channel"),
 }
 
 COMMENT_CODE_TO_PERF_KEY = {code: perf_key for code, perf_key in STRATEGY_COMMENT_REGISTRY.values()}
 COMMENT_CODE_CACHE = dict(COMMENT_CODE_TO_PERF_KEY)
+
+
+LOG_DIR = Path("logs")
+LOG_FILE_PREFIX = "live_run"
+MAX_LOG_FILES = 30
+
+
+class ConsoleTee:
+    """Duplicate stream writes to multiple destinations (e.g., console + file)."""
+
+    def __init__(self, *streams):
+        self._streams = tuple(stream for stream in streams if stream is not None)
+        primary = next((stream for stream in self._streams if hasattr(stream, "encoding")), None)
+        self.encoding = getattr(primary, "encoding", "utf-8")
+
+    def write(self, data):
+        for stream in self._streams:
+            stream.write(data)
+            stream.flush()
+        return len(data)
+
+    def flush(self):
+        for stream in self._streams:
+            stream.flush()
+
+    def isatty(self):
+        return any(getattr(stream, "isatty", lambda: False)() for stream in self._streams)
+
+    def fileno(self):
+        for stream in self._streams:
+            if hasattr(stream, "fileno"):
+                try:
+                    return stream.fileno()
+                except OSError:
+                    continue
+        raise OSError("ConsoleTee has no fileno")
+
+
+def _prune_old_logs(directory: Path, prefix: str, keep: int) -> None:
+    if keep <= 0:
+        return
+    try:
+        log_files = sorted(
+            directory.glob(f"{prefix}_*.txt"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        for stale_file in log_files[keep:]:
+            try:
+                stale_file.unlink()
+            except FileNotFoundError:
+                continue
+    except Exception as exc:
+        fallback_stream = getattr(sys, "__stderr__", None) or getattr(sys, "__stdout__", None)
+        if fallback_stream is not None:
+            fallback_stream.write(f"⚠️  Failed to prune old logs: {exc}\n")
+            fallback_stream.flush()
+
+
+def setup_run_logger() -> Path:
+    """Mirror stdout and stderr to a timestamped log file for post-run analysis."""
+
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = LOG_DIR / f"{LOG_FILE_PREFIX}_{timestamp}.txt"
+
+    log_handle = open(log_path, "a", encoding="utf-8")
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+
+    sys.stdout = ConsoleTee(original_stdout, log_handle)
+    sys.stderr = ConsoleTee(original_stderr, log_handle)
+
+    def _close_handle():
+        try:
+            log_handle.flush()
+        finally:
+            log_handle.close()
+
+    atexit.register(_close_handle)
+    _prune_old_logs(LOG_DIR, LOG_FILE_PREFIX, MAX_LOG_FILES)
+    return log_path
+
+
+RUN_LOG_FILE = setup_run_logger()
+print(f"📝 Logging live run to {RUN_LOG_FILE.resolve()} (retaining last {MAX_LOG_FILES} logs)")
+
+run_baseline_snapshot: dict[str, float | str | None] = {
+    "balance": None,
+    "equity": None,
+    "timestamp": None,
+}
 
 
 def _generate_comment_code(label: str) -> str:
@@ -74,6 +167,8 @@ soft_guard_state: dict[str, float | bool] = {
     "drawdown": 0.0,
 }
 
+counter_signal_tracker: dict[str, dict[str, float | int | str]] = {}
+
 def load_strategy_performance():
     """Load strategy performance from file."""
     global strategy_performance
@@ -119,6 +214,39 @@ def update_strategy_performance(strategy_name: str, symbol: str, pnl: float):
     
     save_strategy_performance()
     print(f"📈 Updated performance for {strategy_name} on {symbol}: PnL={pnl:.2f}, WR={perf['win_rate']:.1%}, Trades={perf['total_trades']}")
+
+
+def summarize_open_positions(positions) -> str:
+    """Aggregate MT5 position objects into a compact summary string."""
+    if not positions:
+        return ""
+
+    aggregated: dict[str, dict[str, float]] = defaultdict(lambda: {
+        'count': 0,
+        'buy': 0.0,
+        'sell': 0.0,
+        'pnl': 0.0,
+    })
+
+    for pos in positions:
+        symbol = getattr(pos, 'symbol', 'UNKNOWN')
+        stats = aggregated[symbol]
+        stats['count'] += 1
+        stats['pnl'] += float(getattr(pos, 'profit', 0.0) or 0.0)
+        volume = float(getattr(pos, 'volume', 0.0) or 0.0)
+        if getattr(pos, 'type', None) == mt5.POSITION_TYPE_BUY:
+            stats['buy'] += volume
+        else:
+            stats['sell'] += volume
+
+    parts: list[str] = []
+    for symbol in sorted(aggregated.keys()):
+        stats = aggregated[symbol]
+        net_vol = stats['buy'] - stats['sell']
+        parts.append(
+            f"{symbol}: {int(stats['count'])} pos (buy {stats['buy']:.2f}, sell {stats['sell']:.2f}, net {net_vol:+.2f}, pnl {stats['pnl']:.2f})"
+        )
+    return " | ".join(parts)
 
 
 def _week_start(date_obj: datetime) -> datetime:
@@ -262,40 +390,51 @@ def risk_guard_drawdown_factor() -> float:
 def evaluate_soft_guard(balance: float | None, equity: float | None) -> dict[str, float | bool | None]:
     """Assess soft guard state based on current balance/equity."""
     if not SOFT_GUARD_ENABLED or balance is None or balance <= 0 or equity is None:
-        soft_guard_state.update({"blocked": False, "throttle": 1.0, "drawdown": 0.0})
-        return {"blocked": False, "throttle": 1.0, "drawdown": 0.0, "transition": None}
+        soft_guard_state.update({"blocked": False, "throttle": 1.0, "drawdown": 0.0, "status": "clear"})
+        return {"blocked": False, "throttle": 1.0, "drawdown": 0.0, "transition": None, "status": "clear"}
 
     previous_blocked = bool(soft_guard_state.get("blocked", False))
     previous_throttle = float(soft_guard_state.get("throttle", 1.0) or 1.0)
+    previous_status = soft_guard_state.get("status", "clear")
 
     drawdown = max(0.0, (balance - equity) / balance)
 
-    blocked = previous_blocked
     if previous_blocked:
-        if drawdown <= SOFT_GUARD_RESUME:
-            blocked = False
+        blocked = drawdown > SOFT_GUARD_RESUME
     else:
-        if drawdown >= SOFT_GUARD_LIMIT:
-            blocked = True
+        blocked = drawdown >= SOFT_GUARD_LIMIT
 
+    status = "blocked" if blocked else "clear"
     if blocked:
         throttle = 0.0
     else:
         if drawdown <= SOFT_GUARD_RESUME:
             throttle = 1.0
+            status = "clear"
+        elif drawdown < SOFT_GUARD_CAUTION:
+            throttle = 0.95
+            status = "soft"
+        elif drawdown < SOFT_GUARD_ALERT:
+            span = max(1e-6, SOFT_GUARD_ALERT - SOFT_GUARD_CAUTION)
+            ratio = (drawdown - SOFT_GUARD_CAUTION) / span
+            throttle = max(0.75, 0.9 - ratio * 0.15)
+            status = "caution"
         else:
-            span = max(1e-6, SOFT_GUARD_LIMIT - SOFT_GUARD_RESUME)
-            ratio = min(1.0, max(0.0, (drawdown - SOFT_GUARD_RESUME) / span))
-            throttle = max(0.35, 1.0 - ratio * 0.65)
+            span = max(1e-6, SOFT_GUARD_LIMIT - SOFT_GUARD_ALERT)
+            ratio = min(1.0, max(0.0, (drawdown - SOFT_GUARD_ALERT) / span))
+            throttle = max(SOFT_GUARD_MIN_THROTTLE, 0.75 - ratio * (0.75 - SOFT_GUARD_MIN_THROTTLE))
+            status = "alert"
 
     transition: dict[str, float | str] | None = None
     if blocked != previous_blocked:
         transition = {"type": "block" if blocked else "resume"}
+    elif status != previous_status:
+        transition = {"type": "status", "value": status}
     elif abs(throttle - previous_throttle) >= 0.05:
         transition = {"type": "throttle", "value": throttle}
 
-    soft_guard_state.update({"blocked": blocked, "throttle": throttle, "drawdown": drawdown})
-    return {"blocked": blocked, "throttle": throttle, "drawdown": drawdown, "transition": transition}
+    soft_guard_state.update({"blocked": blocked, "throttle": throttle, "drawdown": drawdown, "status": status})
+    return {"blocked": blocked, "throttle": throttle, "drawdown": drawdown, "transition": transition, "status": status}
 
 
 def apply_risk_guard_to_multiplier(multiplier: float) -> float:
@@ -309,7 +448,7 @@ def apply_risk_guard_to_multiplier(multiplier: float) -> float:
     if RISK_GUARD_ENABLED and guard_factor < 1.0:
         min_bound = min(min_bound, RISK_RECOVERY_MIN_FACTOR)
     if SOFT_GUARD_ENABLED and soft_factor < 1.0:
-        min_bound = min(min_bound, max(0.35, soft_factor))
+        min_bound = min(min_bound, max(SOFT_GUARD_MIN_THROTTLE, soft_factor))
 
     adjusted = max(min_bound, min(RISK_MULTIPLIER_MAX, adjusted))
     return round(adjusted, 2)
@@ -406,6 +545,16 @@ TP_ATR_MULTIPLIER = 2.0  # Default fallback; individual strategies can override
 RESPECT_STOPS_LEVEL = True  # Enforce broker minimal stop distance if provided
 ALLOW_HEDGING = False  # When False, wait for existing positions to close before taking opposite trades
 
+# Counter-signal exit tuning (avoid sitting in drawdown when strong opposite signal persists)
+COUNTER_SIGNAL_EXIT_ENABLED = True
+COUNTER_SIGNAL_EXIT_MIN_CONFIDENCE = 0.7
+COUNTER_SIGNAL_EXIT_MIN_ATR_LOSS = 0.9
+COUNTER_SIGNAL_EXIT_MIN_STREAK = 2
+COUNTER_SIGNAL_EXIT_RESET_SCANS = 6
+COUNTER_SIGNAL_EXIT_REQUIRE_MICRO = True
+COUNTER_SIGNAL_EXIT_MIN_NET_LOSS = -1.0  # Require at least -$1 unrealized on the conflicted leg
+COUNTER_SIGNAL_EXIT_COMMENT = "CounterExit"
+
 # Enhanced risk management
 ACCOUNT_RISK_PER_TRADE = 0.12  # Reduced base risk to balance fast growth with capital protection
 MIN_LOT_SIZE = 0.01  # Minimum position size
@@ -420,8 +569,11 @@ SCAN_INTERVAL_SECONDS = 120       # Time between scan loops (seconds)
 
 # Soft drawdown guard (still aggressive but avoids death spirals)
 SOFT_GUARD_ENABLED = True
-SOFT_GUARD_LIMIT = 0.35           # Block new trades if unrealized DD exceeds 35% of balance
-SOFT_GUARD_RESUME = 0.20          # Resume trading once DD recovers below 20%
+SOFT_GUARD_LIMIT = 0.33           # Block new trades if unrealized DD exceeds 33% of balance
+SOFT_GUARD_ALERT = 0.27           # Strongly throttle between 27%-33%
+SOFT_GUARD_CAUTION = 0.20         # Begin soft throttling after 20%
+SOFT_GUARD_RESUME = 0.16          # Resume trading once DD recovers below 16%
+SOFT_GUARD_MIN_THROTTLE = 0.40    # Never risk below 40% sizing unless fully blocked
 
 # Drawdown-aware micro confirmation tuning
 DRAWDOWN_RELAXATION_PER_ATR = 0.25   # Relax micro alignment 25% per ATR of drawdown
@@ -442,6 +594,13 @@ PYRAMID_MAX_LOSING_POSITIONS = 3          # Allow deeper averaging while managin
 PYRAMID_WINNING_RISK_BOOST = 1.2          # Risk multiplier boost when scaling into profitable legs
 PYRAMID_LOSING_RISK_BOOST = 1.0           # Neutral sizing when averaging into drawdown
 
+# Mean reversion stack safety
+MEAN_REVERSION_MAX_LOSING_POSITIONS = 2
+MEAN_REVERSION_STACK_DRAW_LIMIT_ATR = 1.6
+MEAN_REVERSION_STACK_HARD_CAP_ATR = 2.3
+MEAN_REVERSION_STACK_RESCUE_CONFIDENCE = 1.25
+MEAN_REVERSION_STACK_RESCUE_SCALE = 0.6
+
 # Trade quality filters
 SPREAD_POINTS_LIMIT = 10            # Maximum raw spread in points before skipping
 SPREAD_ATR_RATIO_LIMIT = 0.45       # Spread must remain under 45% of current ATR
@@ -455,6 +614,9 @@ MICRO_MOMENTUM_MIN_THRESHOLD = 0.0002
 MICRO_MOMENTUM_MAX_THRESHOLD = 0.0025
 MICRO_MOMENTUM_DYNAMIC_MULTIPLIER = 0.55
 MICRO_MOMENTUM_SOFT_PASS_RATIO = 0.45
+MICRO_MOMENTUM_NEAR_MISS_RATIO = 0.8
+MICRO_MOMENTUM_GUARD_MIN = 0.85
+MICRO_MOMENTUM_NEAR_MISS_MAX_DD = 0.8
 
 # Signal confidence gating
 CONFIDENCE_EXECUTION_THRESHOLD = 0.65  # Slightly looser gate for higher trade frequency
@@ -601,15 +763,27 @@ DEFAULT_CORRELATION_LIMITS = {
     "max_same_direction": 2,
     "max_total": 3,
     "size_multiplier": 0.6,
+    "max_same_direction_volume": 0.0,
+    "volume_relief_scale": 0.55,
 }
 
 CORRELATION_GROUP_LIMITS = {
-    "EUR_PAIRS": {"max_same_direction": 3, "max_total": 4, "size_multiplier": 0.65},
-    "GBP_PAIRS": {"max_same_direction": 3, "max_total": 4, "size_multiplier": 0.6},
-    "JPY_PAIRS": {"max_same_direction": 2, "max_total": 3, "size_multiplier": 0.5},
-    "USD_MAJORS": {"max_same_direction": 3, "max_total": 4, "size_multiplier": 0.65},
-    "SAFE_HAVEN": {"max_same_direction": 2, "max_total": 2, "size_multiplier": 0.5},
+    "EUR_PAIRS": {"max_same_direction": 3, "max_total": 4, "size_multiplier": 0.65, "max_same_direction_volume": 0.24, "volume_relief_scale": 0.6},
+    "GBP_PAIRS": {"max_same_direction": 3, "max_total": 4, "size_multiplier": 0.6, "max_same_direction_volume": 0.26, "volume_relief_scale": 0.6},
+    "JPY_PAIRS": {"max_same_direction": 2, "max_total": 3, "size_multiplier": 0.5, "max_same_direction_volume": 0.18, "volume_relief_scale": 0.55},
+    "USD_MAJORS": {"max_same_direction": 3, "max_total": 4, "size_multiplier": 0.65, "max_same_direction_volume": 0.28, "volume_relief_scale": 0.6},
+    "SAFE_HAVEN": {"max_same_direction": 2, "max_total": 2, "size_multiplier": 0.5, "max_same_direction_volume": 0.12, "volume_relief_scale": 0.5},
 }
+
+# Adaptive correlation guard tuning
+CORRELATION_HIGH_CONFIDENCE_THRESHOLD = 1.25
+CORRELATION_GUARD_SUPPORT_THRESHOLD = 0.8
+CORRELATION_OVERRIDE_SCALE = 0.65
+CORRELATION_OVERRIDE_MIN_SCALE = 0.45
+CORRELATION_HEDGE_RELIEF_SCALE = 0.8
+CORRELATION_HEDGE_BIAS_SLACK = 1
+CORRELATION_DRAWDOWN_TIGHTEN_ATR = 1.2
+CORRELATION_DRAWDOWN_CUTOFF_ATR = 1.8
 
 # Market Regime Detection - Dynamic strategy adaptation
 REGIME_LOOKBACK_PERIODS = 50  # Bars to analyze for regime detection
@@ -685,6 +859,11 @@ TRAILING_START = 1.5            # Start trailing after 1.5x ATR profit
 TRAILING_DISTANCE = 1.0         # Trail SL 1x ATR behind price
 PARTIAL_TAKE_PROFIT = 0.5       # Take 50% profit at 1:1 risk/reward
 PARTIAL_TP_RATIO = 1.0          # Take partial profit at 1x risk
+TRAILING_TIGHT_PROFIT = 2.5     # Tighten trailing once profit reaches 2.5x ATR
+TRAILING_DISTANCE_TIGHT = 0.8   # Tighter trailing distance after strong move
+TRAILING_ULTRA_PROFIT = 4.0     # Aggressively trail once profit exceeds 4x ATR
+TRAILING_DISTANCE_ULTRA = 0.5   # Very tight trailing distance for deep winners
+TRAILING_MICRO_DISTANCE = 0.65  # Micro-lot positions trail slightly tighter
 
 
 def get_symbol_currency_exposure(symbol: str) -> list:
@@ -740,91 +919,191 @@ def is_news_blackout_period(symbol: str) -> tuple[bool, str]:
         return False, ""
 
 
-def manage_position_stops(symbol: str, atr_value: float):
+def manage_position_stops(symbol: str, atr_value: float) -> dict[str, int]:
     """Advanced stop management: breakeven, trailing, partial profits."""
+    stats = {
+        "stops_breakeven": 0,
+        "stops_trailing": 0,
+        "stops_failed": 0,
+        "partials_taken": 0,
+        "partials_failed": 0,
+        "partials_unavailable": 0,
+    }
+
     if not ENABLE_ADVANCED_STOPS or not atr_value:
-        return
-    
+        return stats
+
     try:
+        symbol_info = mt5.symbol_info(symbol)
+        if symbol_info is None:
+            mt5.symbol_select(symbol, True)
+            symbol_info = mt5.symbol_info(symbol)
+
+        point = getattr(symbol_info, "point", 0.00001) or 1e-5
+        digits = getattr(symbol_info, "digits", 5)
+        min_volume = getattr(symbol_info, "volume_min", 0.01) or 0.01
+
         positions = mt5.positions_get(symbol=symbol)
         if not positions:
-            return
-        
+            return stats
+
         for position in positions:
             ticket = position.ticket
             position_type = position.type  # 0=buy, 1=sell
-            open_price = position.price_open
-            current_price = position.price_current
-            volume = position.volume
-            sl = position.sl
-            tp = position.tp
-            
-            # Calculate current profit in ATR terms
-            if position_type == 0:  # Buy position
+            open_price = float(getattr(position, "price_open", 0.0) or 0.0)
+            current_price = float(getattr(position, "price_current", 0.0) or 0.0)
+            volume = float(getattr(position, "volume", 0.0) or 0.0)
+            raw_sl = float(getattr(position, "sl", 0.0) or 0.0)
+            sl = raw_sl if raw_sl not in (0.0, None) else None
+
+            if volume <= 0:
+                continue
+
+            if position_type == mt5.POSITION_TYPE_BUY:
                 profit_distance = current_price - open_price
                 is_profitable = profit_distance > 0
-            else:  # Sell position  
+            else:
                 profit_distance = open_price - current_price
                 is_profitable = profit_distance > 0
-            
+
             if not is_profitable:
-                continue  # Skip losing positions
-            
-            profit_atr = profit_distance / atr_value if atr_value > 0 else 0
-            
-            # 1. Move to breakeven after 1x ATR profit
-            if profit_atr >= BREAKEVEN_TRIGGER and sl != open_price:
-                new_sl = open_price
-                print(f"💰 {symbol} Moving to breakeven (profit: {profit_atr:.1f}x ATR)")
-                modify_position_sl(ticket, new_sl)
-            
-            # 2. Start trailing after 1.5x ATR profit
-            elif profit_atr >= TRAILING_START:
-                if position_type == 0:  # Buy position
-                    trail_sl = current_price - (TRAILING_DISTANCE * atr_value)
-                    if trail_sl > sl:  # Only move SL up
-                        print(f"📈 {symbol} Trailing stop: {trail_sl:.5f} (profit: {profit_atr:.1f}x ATR)")
-                        modify_position_sl(ticket, trail_sl)
-                else:  # Sell position
-                    trail_sl = current_price + (TRAILING_DISTANCE * atr_value)
-                    if trail_sl < sl:  # Only move SL down (for sell)
-                        print(f"📉 {symbol} Trailing stop: {trail_sl:.5f} (profit: {profit_atr:.1f}x ATR)")
-                        modify_position_sl(ticket, trail_sl)
-            
-            # 3. Partial profit taking at 1:1 ratio
-            if profit_atr >= PARTIAL_TP_RATIO and volume > 0.01:
+                continue
+
+            profit_atr = profit_distance / atr_value if atr_value > 0 else 0.0
+            breakeven_target = round(open_price, digits)
+
+            # 1. Move to breakeven after threshold profit
+            if profit_atr >= BREAKEVEN_TRIGGER and (sl is None or abs(sl - breakeven_target) > point):
+                if modify_position_sl(ticket, breakeven_target):
+                    stats["stops_breakeven"] += 1
+                    old_sl_display = sl if sl is not None else 0.0
+                    print(
+                        f"💰 {symbol} ticket {ticket}: SL {old_sl_display:.5f}→{breakeven_target:.5f} "
+                        f"(breakeven lock, profit {profit_atr:.1f}x ATR)"
+                    )
+                    sl = breakeven_target
+                else:
+                    stats["stops_failed"] += 1
+                    print(
+                        f"⚠️ {symbol} ticket {ticket}: breakeven SL update rejected (target {breakeven_target:.5f})."
+                    )
+
+            # 2. Dynamic trailing stop once position runs
+            if profit_atr >= TRAILING_START:
+                trail_distance = TRAILING_DISTANCE
+                if profit_atr >= TRAILING_TIGHT_PROFIT:
+                    trail_distance = min(trail_distance, TRAILING_DISTANCE_TIGHT)
+                if profit_atr >= TRAILING_ULTRA_PROFIT:
+                    trail_distance = min(trail_distance, TRAILING_DISTANCE_ULTRA)
+                if volume <= min_volume + 1e-9:
+                    trail_distance = min(trail_distance, TRAILING_MICRO_DISTANCE)
+
+                trail_distance = max(0.1, trail_distance)
+
+                if position_type == mt5.POSITION_TYPE_BUY:
+                    trail_sl = current_price - (trail_distance * atr_value)
+                    should_move = sl is None or trail_sl > (sl + point)
+                else:
+                    trail_sl = current_price + (trail_distance * atr_value)
+                    should_move = sl is None or trail_sl < (sl - point)
+
+                trail_sl = round(trail_sl, digits)
+
+                if should_move and trail_sl > 0:
+                    if modify_position_sl(ticket, trail_sl):
+                        stats["stops_trailing"] += 1
+                        old_sl_display = sl if sl is not None else breakeven_target
+                        direction_icon = "📈" if position_type == mt5.POSITION_TYPE_BUY else "📉"
+                        print(
+                            f"{direction_icon} {symbol} ticket {ticket}: trailing SL {old_sl_display:.5f}→{trail_sl:.5f} "
+                            f"({trail_distance:.2f} ATR span, profit {profit_atr:.1f}x ATR)"
+                        )
+                        sl = trail_sl
+                    else:
+                        stats["stops_failed"] += 1
+                        print(
+                            f"⚠️ {symbol} ticket {ticket}: trailing SL update rejected (target {trail_sl:.5f})."
+                        )
+
+            # 3. Partial profit taking when contract size permits
+            if profit_atr >= PARTIAL_TP_RATIO:
                 partial_volume = volume * PARTIAL_TAKE_PROFIT
-                if partial_volume >= 0.01:  # Minimum trade size
-                    print(f"💵 {symbol} Taking partial profit: {partial_volume:.2f} lots at {profit_atr:.1f}x ATR")
-                    close_partial_position(ticket, partial_volume)
-                    
+                if partial_volume < min_volume - 1e-9:
+                    stats["partials_unavailable"] += 1
+                    print(
+                        f"ℹ️ {symbol} ticket {ticket}: partial target {partial_volume:.2f} below min lot "
+                        f"{min_volume:.2f}; relying on trailing instead."
+                    )
+                else:
+                    if close_partial_position(ticket, partial_volume):
+                        stats["partials_taken"] += 1
+                        remaining = max(0.0, volume - partial_volume)
+                        print(
+                            f"💵 {symbol} ticket {ticket}: partial {partial_volume:.2f} lots secured at {profit_atr:.1f}x ATR "
+                            f"(remaining {remaining:.2f})."
+                        )
+                    else:
+                        stats["partials_failed"] += 1
+                        print(
+                            f"⚠️ {symbol} ticket {ticket}: partial close request failed for {partial_volume:.2f} lots."
+                        )
+
+        return stats
+
     except Exception as e:
         print(f"Error managing stops for {symbol}: {e}")
+        return stats
 
 
-def modify_position_sl(ticket: int, new_sl: float):
-    """Modify stop loss for an existing position."""
+def modify_position_sl(ticket: int, new_sl: float, attempts: int = 3, backoff: float = 0.6) -> bool:
+    """Modify stop loss for an existing position with basic retry handling."""
     try:
-        position = mt5.positions_get(ticket=ticket)
-        if not position:
-            return False
-        
-        position = position[0]
-        
-        request = {
-            "action": mt5.TRADE_ACTION_SLTP,
-            "position": ticket,
-            "sl": new_sl,
-            "tp": position.tp,  # Keep existing TP
+        retryable_codes = {
+            getattr(mt5, "TRADE_RETCODE_REQUOTE", None),
+            getattr(mt5, "TRADE_RETCODE_REJECT", None),
+            getattr(mt5, "TRADE_RETCODE_INVALID_PRICE", None),
+            getattr(mt5, "TRADE_RETCODE_PRICE_CHANGED", None),
+            getattr(mt5, "TRADE_RETCODE_MARKET_CLOSED", None),
+            getattr(mt5, "TRADE_RETCODE_NO_CONNECTION", None),
         }
-        
-        result = mt5.order_send(request)
-        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
-            return True
-        else:
-            print(f"Failed to modify SL for ticket {ticket}: {result.comment if result else 'No result'}")
+
+        for attempt in range(1, max(1, attempts) + 1):
+            position = mt5.positions_get(ticket=ticket)
+            if not position:
+                print(f"⚠️  Unable to modify SL for ticket {ticket}: position not found.")
+                return False
+
+            pos = position[0]
+            request = {
+                "action": mt5.TRADE_ACTION_SLTP,
+                "position": ticket,
+                "sl": new_sl,
+                "tp": pos.tp,
+            }
+
+            result = mt5.order_send(request)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                if attempt > 1:
+                    print(f"✅ Ticket {ticket}: SL update succeeded on retry #{attempt}.")
+                return True
+
+            reason = result.comment if result else "No result"
+            retcode = result.retcode if result else None
+            is_retryable = retcode in retryable_codes
+
+            if attempt < attempts and is_retryable:
+                delay = backoff * attempt
+                print(
+                    f"⏳ Ticket {ticket}: SL update retry #{attempt} failed ({reason}); retrying in {delay:.1f}s..."
+                )
+                time.sleep(delay)
+                continue
+
+            print(f"Failed to modify SL for ticket {ticket}: {reason}")
             return False
-            
+
+        return False
+
     except Exception as e:
         print(f"Error modifying SL for ticket {ticket}: {e}")
         return False
@@ -912,6 +1191,176 @@ def close_partial_position(ticket: int, volume: float):
     except Exception as e:
         print(f"Error closing partial position for ticket {ticket}: {e}")
         return False
+
+
+def close_symbol_positions(
+    symbol: str,
+    side: str | None = None,
+    reason: str | None = None,
+    deviation: int = 10,
+) -> int:
+    """Close all matching positions for a symbol, optionally filtered by side ('buy' or 'sell')."""
+    try:
+        if not ensure_connection_ready():
+            return 0
+
+        positions = mt5.positions_get(symbol=symbol)
+        if not positions:
+            return 0
+
+        symbol_info = prepare_symbol(symbol)
+        if symbol_info is None:
+            return 0
+
+        filling = resolve_filling_type(symbol_info)
+        closed = 0
+        base_comment = sanitize_comment(reason or COUNTER_SIGNAL_EXIT_COMMENT)
+
+        for position in positions:
+            pos_side = 'buy' if position.type == mt5.POSITION_TYPE_BUY else 'sell'
+            if side and pos_side != side:
+                continue
+
+            volume = float(getattr(position, 'volume', 0.0) or 0.0)
+            if volume <= 0:
+                continue
+
+            tick = mt5.symbol_info_tick(symbol)
+            if tick is None:
+                print(f"⚠️ {symbol}: Missing tick data while attempting to close positions.")
+                break
+
+            order_type = mt5.ORDER_TYPE_SELL if pos_side == 'buy' else mt5.ORDER_TYPE_BUY
+            price = tick.bid if order_type == mt5.ORDER_TYPE_SELL else tick.ask
+            normalized_volume = normalize_volume(volume, symbol_info)
+            request_comment = sanitize_comment(f"{base_comment}-{pos_side[:1].upper()}")
+
+            request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "symbol": symbol,
+                "position": position.ticket,
+                "volume": normalized_volume,
+                "type": order_type,
+                "price": price,
+                "deviation": deviation,
+                "type_filling": filling,
+                "comment": request_comment,
+            }
+
+            result = mt5.order_send(request)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                closed += 1
+                print(
+                    f"✅ {symbol}: Closed {pos_side} ticket {position.ticket} ({normalized_volume:.2f} lots) via {request_comment}."
+                )
+            else:
+                reason_text = result.comment if result else "No result"
+                print(f"⚠️ {symbol}: Failed to close ticket {position.ticket} ({pos_side}) -> {reason_text}")
+
+        return closed
+    except Exception as exc:
+        print(f"Error while closing positions for {symbol}: {exc}")
+        return 0
+
+
+def clear_counter_signal_state(symbol: str) -> None:
+    """Reset accumulated counter-signal tracking for the given symbol."""
+    counter_signal_tracker.pop(symbol, None)
+
+
+def should_force_counter_exit(
+    symbol: str,
+    incoming_signal: str,
+    candidate_meta: dict[str, object],
+    positions: list | None,
+    atr_value: float | None,
+    scan_number: int,
+) -> tuple[bool, str | None]:
+    """Evaluate whether to exit opposing exposure to support a strong counter signal."""
+    if not COUNTER_SIGNAL_EXIT_ENABLED or not positions:
+        return False, None
+
+    if incoming_signal not in {"buy", "sell"}:
+        return False, None
+
+    direction_type = mt5.POSITION_TYPE_SELL if incoming_signal == 'buy' else mt5.POSITION_TYPE_BUY
+    relevant_positions = [p for p in positions if getattr(p, 'type', None) == direction_type]
+    if not relevant_positions:
+        clear_counter_signal_state(symbol)
+        return False, None
+
+    net_profit = sum(float(getattr(p, 'profit', 0.0) or 0.0) for p in relevant_positions)
+    if net_profit > COUNTER_SIGNAL_EXIT_MIN_NET_LOSS:
+        clear_counter_signal_state(symbol)
+        return False, None
+
+    effective_atr = float(atr_value) if atr_value else None
+    if effective_atr is None or effective_atr <= 0:
+        effective_atr = calculate_atr(symbol, timeframe=mt5.TIMEFRAME_M15, period=ATR_PERIOD)
+    if effective_atr is None or effective_atr <= 0:
+        return False, None
+
+    same_dd, opposite_dd, worst_dd, total_dd = _calculate_drawdown_pressure_atr(
+        relevant_positions,
+        effective_atr,
+        incoming_signal,
+    )
+    loss_atr = max(opposite_dd, worst_dd, total_dd)
+    if loss_atr < COUNTER_SIGNAL_EXIT_MIN_ATR_LOSS:
+        tracker = counter_signal_tracker.setdefault(
+            symbol,
+            {"direction": incoming_signal, "streak": 0, "last_scan": 0},
+        )
+        tracker["streak"] = 0
+        tracker["direction"] = incoming_signal
+        tracker["last_scan"] = scan_number
+        return False, None
+
+    confidence = float(candidate_meta.get('confidence') or 0.0)
+    micro_score = candidate_meta.get('micro_momentum')
+    micro_soft = bool(candidate_meta.get('micro_soft_pass'))
+    micro_alignment = False
+    if micro_score is not None:
+        score_val = float(micro_score)
+        micro_alignment = score_val >= 0 if incoming_signal == 'buy' else score_val <= 0
+    if micro_soft and micro_score is not None:
+        micro_alignment = True
+
+    if COUNTER_SIGNAL_EXIT_REQUIRE_MICRO and not micro_alignment:
+        tracker = counter_signal_tracker.setdefault(
+            symbol,
+            {"direction": incoming_signal, "streak": 0, "last_scan": 0},
+        )
+        tracker["streak"] = 0
+        tracker["direction"] = incoming_signal
+        tracker["last_scan"] = scan_number
+        return False, None
+
+    tracker = counter_signal_tracker.setdefault(
+        symbol,
+        {"direction": incoming_signal, "streak": 0, "last_scan": 0},
+    )
+    if tracker.get("direction") != incoming_signal:
+        tracker["streak"] = 0
+    last_scan = int(tracker.get("last_scan", 0) or 0)
+    if scan_number - last_scan > COUNTER_SIGNAL_EXIT_RESET_SCANS:
+        tracker["streak"] = 0
+
+    tracker["direction"] = incoming_signal
+    tracker["last_scan"] = scan_number
+
+    if confidence >= COUNTER_SIGNAL_EXIT_MIN_CONFIDENCE and net_profit <= COUNTER_SIGNAL_EXIT_MIN_NET_LOSS:
+        tracker["streak"] = int(tracker.get("streak", 0)) + 1
+        if tracker["streak"] >= COUNTER_SIGNAL_EXIT_MIN_STREAK:
+            tracker["streak"] = 0
+            reason = (
+                f"confidence {confidence:.2f}, drawdown {loss_atr:.2f} ATR, net {net_profit:.2f}"
+            )
+            return True, reason
+    else:
+        tracker["streak"] = 0
+
+    return False, None
 
 
 def get_mtf_trend_bias(symbol: str) -> str:
@@ -1031,6 +1480,7 @@ def confirm_with_micro_momentum(
     atr_value: float | None,
     reference_price: float | None,
     open_positions: list | None = None,
+    guard_factor: float | None = None,
 ) -> tuple[bool, float, float, bool, bool]:
     """Use micro timeframe momentum bias to refine entries."""
     if not ENABLE_MICRO_MOMENTUM_CONFIRMATION:
@@ -1038,6 +1488,8 @@ def confirm_with_micro_momentum(
 
     try:
         override_used = False
+        guard_factor_val = float(guard_factor) if guard_factor is not None else 1.0
+        guard_factor_val = max(0.0, min(guard_factor_val, 1.5))
         request_count = MICRO_MOMENTUM_LOOKBACK + 3
         rates = mt5.copy_rates_from_pos(symbol, MICRO_MOMENTUM_TIMEFRAME, 0, request_count)
         if rates is None or len(rates) < MICRO_MOMENTUM_LOOKBACK + 2:
@@ -1125,6 +1577,26 @@ def confirm_with_micro_momentum(
                 )
                 return True, float(momentum_score), threshold, soft_pass, override_used
 
+        guard_relaxed = guard_factor_val >= MICRO_MOMENTUM_GUARD_MIN
+        drawdown_ok = drawdown_pressure_atr <= MICRO_MOMENTUM_NEAR_MISS_MAX_DD
+        near_miss_ratio = MICRO_MOMENTUM_NEAR_MISS_RATIO
+
+        if guard_relaxed and drawdown_ok:
+            if signal == 'buy' and momentum_score >= threshold * near_miss_ratio:
+                soft_pass = True
+                override_used = True
+                print(
+                    f"🪄 {symbol}: Guard-approved micro near-miss for BUY (score {momentum_score:+.2%} vs threshold {threshold:.2%}, guard {guard_factor_val:.2f})."
+                )
+                return True, float(momentum_score), threshold, soft_pass, override_used
+            if signal == 'sell' and momentum_score <= -threshold * near_miss_ratio:
+                soft_pass = True
+                override_used = True
+                print(
+                    f"🪄 {symbol}: Guard-approved micro near-miss for SELL (score {momentum_score:+.2%} vs threshold {-threshold:.2%}, guard {guard_factor_val:.2f})."
+                )
+                return True, float(momentum_score), threshold, soft_pass, override_used
+
         return False, float(momentum_score), threshold, soft_pass, override_used
     except Exception as e:
         print(f"Error computing micro momentum for {symbol}: {e}")
@@ -1181,7 +1653,13 @@ def get_correlated_open_positions(symbol: str) -> list:
         return []
 
 
-def should_limit_correlation_exposure(symbol: str, signal: str) -> tuple[bool, float]:
+def should_limit_correlation_exposure(
+    symbol: str,
+    signal: str,
+    confidence: float | None = None,
+    guard_factor: float | None = None,
+    drawdown_pressure: float | None = None,
+) -> tuple[bool, float]:
     """Check if we should limit position size due to correlation exposure.
     
     Returns:
@@ -1192,54 +1670,170 @@ def should_limit_correlation_exposure(symbol: str, signal: str) -> tuple[bool, f
         
         if not correlated_positions:
             return False, 1.0  # No correlation limits
+
+        confidence = float(confidence or 0.0)
+        guard_factor = float(guard_factor) if guard_factor is not None else 1.0
+        drawdown_pressure = float(drawdown_pressure or 0.0)
+        high_confidence = confidence >= CORRELATION_HIGH_CONFIDENCE_THRESHOLD
+        guard_supportive = guard_factor >= CORRELATION_GUARD_SUPPORT_THRESHOLD
+        drawdown_tight = drawdown_pressure >= CORRELATION_DRAWDOWN_TIGHTEN_ATR
+        drawdown_hard_stop = drawdown_pressure >= CORRELATION_DRAWDOWN_CUTOFF_ATR
         
         group_stats: dict[str, dict[str, float]] = {}
         for pos in correlated_positions:
             group = pos.get('group')
             if not group:
                 continue
-            stats = group_stats.setdefault(group, {'same': 0, 'opposite': 0, 'total': 0})
+            stats = group_stats.setdefault(
+                group,
+                {
+                    'same': 0,
+                    'opposite': 0,
+                    'total': 0,
+                    'same_volume': 0.0,
+                    'opposite_volume': 0.0,
+                    'total_volume': 0.0,
+                },
+            )
             stats['total'] += 1
+            volume = float(pos.get('volume') or 0.0)
+            stats['total_volume'] += volume
             if pos['type'] == signal:
                 stats['same'] += 1
+                stats['same_volume'] += volume
             else:
                 stats['opposite'] += 1
+                stats['opposite_volume'] += volume
 
-        block_reasons: list[tuple[str, dict[str, float], dict[str, float]]] = []
-        scale_reasons: list[tuple[str, dict[str, float], dict[str, float]]] = []
+        size_multiplier = 1.0
+        scale_records: list[dict[str, object]] = []
 
         for group, stats in group_stats.items():
             limits = CORRELATION_GROUP_LIMITS.get(group, DEFAULT_CORRELATION_LIMITS)
+            base_multiplier = float(limits.get('size_multiplier', DEFAULT_CORRELATION_LIMITS['size_multiplier']))
+            net_bias = stats['same'] - stats['opposite']
+            hedged = stats['opposite'] >= max(1, stats['same'] - CORRELATION_HEDGE_BIAS_SLACK)
+            group_multiplier = 1.0
+            reasons: list[str] = []
+
             if stats['same'] >= limits['max_same_direction']:
-                block_reasons.append((group, stats, limits))
-            elif stats['total'] >= limits['max_total']:
-                scale_reasons.append((group, stats, limits))
+                override_scale: float | None = None
+                override_reason: str | None = None
+                max_same_volume = float(limits.get('max_same_direction_volume') or 0.0)
+                if (
+                    max_same_volume > 0
+                    and stats.get('same_volume', 0.0) <= max_same_volume
+                    and not drawdown_hard_stop
+                ):
+                    override_scale = float(limits.get('volume_relief_scale') or base_multiplier)
+                    override_reason = (
+                        f"volume relief {stats.get('same_volume', 0.0):.2f}/{max_same_volume:.2f} lots"
+                    )
+                elif hedged and not drawdown_hard_stop:
+                    override_scale = base_multiplier * CORRELATION_HEDGE_RELIEF_SCALE
+                    override_reason = f"hedged exposure ({stats['opposite']} opposite)"
+                elif high_confidence and guard_supportive and not drawdown_hard_stop:
+                    override_scale = base_multiplier * CORRELATION_OVERRIDE_SCALE
+                    override_reason = f"high confidence {confidence:.2f}"
+
+                if override_scale is not None:
+                    if drawdown_tight:
+                        override_scale *= 0.9
+                    override_scale = min(0.95, max(CORRELATION_OVERRIDE_MIN_SCALE, override_scale))
+                    group_multiplier = min(group_multiplier, override_scale)
+                    reasons.append(f"override: {override_reason}")
+                else:
+                    print(
+                        f"🔗 {symbol}: Blocking trade - {stats['same']} same-direction positions in {group} "
+                        f"(limit {limits['max_same_direction']})."
+                    )
+                    return True, 0.0
+
+            if stats['total'] >= limits['max_total']:
+                adjusted_multiplier = base_multiplier
+                if drawdown_tight:
+                    adjusted_multiplier *= 0.85
+                if drawdown_hard_stop:
+                    adjusted_multiplier *= 0.8
+                adjusted_multiplier = min(0.95, max(CORRELATION_OVERRIDE_MIN_SCALE, adjusted_multiplier))
+                if adjusted_multiplier < group_multiplier:
+                    group_multiplier = adjusted_multiplier
+                reasons.append(f"total exposure {stats['total']}/{limits['max_total']}")
             elif stats['same'] > 0:
-                # Still scale down if we already have exposure in the same direction
-                scale_reasons.append((group, stats, limits))
+                adjusted_multiplier = base_multiplier
+                if hedged:
+                    adjusted_multiplier = min(0.95, adjusted_multiplier + 0.1 * min(stats['opposite'], 2))
+                if drawdown_tight:
+                    adjusted_multiplier *= 0.9
+                if drawdown_hard_stop:
+                    adjusted_multiplier *= 0.85
+                adjusted_multiplier = min(0.95, max(CORRELATION_OVERRIDE_MIN_SCALE, adjusted_multiplier))
+                if adjusted_multiplier < group_multiplier:
+                    group_multiplier = adjusted_multiplier
+                reason_text = f"existing aligned exposure {stats['same']}"
+                if stats.get('same_volume'):
+                    reason_text += f" ({stats['same_volume']:.2f} lots)"
+                reasons.append(reason_text)
 
-        if block_reasons:
-            for group, stats, limits in block_reasons:
+            if reasons and group_multiplier < 1.0:
+                size_multiplier = min(size_multiplier, group_multiplier)
+                scale_records.append({
+                    "group": group,
+                    "stats": stats,
+                    "limits": limits,
+                    "multiplier": group_multiplier,
+                    "reasons": reasons,
+                    "net_bias": net_bias,
+                })
+
+        global_adjustments: list[dict[str, object]] = []
+        if drawdown_hard_stop:
+            dd_scale = max(CORRELATION_OVERRIDE_MIN_SCALE, 0.7)
+            size_multiplier = min(size_multiplier, dd_scale)
+            global_adjustments.append({"label": f"drawdown {drawdown_pressure:.2f} ATR", "multiplier": dd_scale})
+        elif drawdown_tight:
+            dd_scale = max(CORRELATION_OVERRIDE_MIN_SCALE, 0.85)
+            size_multiplier = min(size_multiplier, dd_scale)
+            global_adjustments.append({"label": f"drawdown {drawdown_pressure:.2f} ATR", "multiplier": dd_scale})
+
+        if guard_factor < 1.0:
+            guard_scale = max(CORRELATION_OVERRIDE_MIN_SCALE, 0.75 + 0.25 * guard_factor)
+            size_multiplier = min(size_multiplier, guard_scale)
+            global_adjustments.append({"label": f"guard factor {guard_factor:.2f}", "multiplier": guard_scale})
+
+        if size_multiplier < 1.0:
+            dominant_multiplier = size_multiplier
+            dominant_reason = None
+
+            if scale_records:
+                strongest_group = min(scale_records, key=lambda r: r["multiplier"])
+                if abs(strongest_group["multiplier"] - dominant_multiplier) <= 1e-6:
+                    dominant_reason = (
+                        strongest_group["group"],
+                        strongest_group["stats"],
+                        strongest_group["limits"],
+                        strongest_group["reasons"],
+                        strongest_group["net_bias"],
+                    )
+
+            if dominant_reason is None and global_adjustments:
+                strongest_global = min(global_adjustments, key=lambda r: r["multiplier"])
                 print(
-                    f"🔗 {symbol}: Blocking trade - {stats['same']} same-direction positions in {group} "
-                    f"(limit {limits['max_same_direction']})."
-                )
-            return True, 0.0
-
-        if scale_reasons:
-            size_multiplier = 1.0
-            strongest_reason = None
-            for group, stats, limits in scale_reasons:
-                size_multiplier = min(size_multiplier, limits['size_multiplier'])
-                if strongest_reason is None or limits['size_multiplier'] < strongest_reason[2]['size_multiplier']:
-                    strongest_reason = (group, stats, limits)
-
-            if strongest_reason:
-                group, stats, limits = strongest_reason
-                net_bias = stats['same'] - stats['opposite']
-                print(
-                    f"🔗 {symbol}: Correlation exposure in {group} ({stats['total']}/{limits['max_total']} total, {stats['same']} same-direction, net bias {net_bias:+.0f}). "
+                    f"🔗 {symbol}: Correlation exposure tempered by {strongest_global['label']}. "
                     f"Scaling position by {size_multiplier:.0%}."
+                )
+            elif dominant_reason is not None:
+                group, stats, limits, reasons, net_bias = dominant_reason
+                reason_text = "; ".join(str(reason) for reason in reasons)
+                print(
+                    f"🔗 {symbol}: Correlation exposure in {group} ({stats['total']}/{limits['max_total']} total, "
+                    f"{stats['same']} same, {stats['opposite']} opposite, net {net_bias:+.0f}, "
+                    f"vol {stats.get('total_volume', 0.0):.2f}). Scaling position by {size_multiplier:.0%} "
+                    f"({reason_text})."
+                )
+            else:
+                print(
+                    f"🔗 {symbol}: Correlation exposure active; scaling position by {size_multiplier:.0%}."
                 )
             return False, size_multiplier
 
@@ -1257,6 +1851,8 @@ def evaluate_pyramiding(
     positions: list,
     candidate_confidence: float,
     atr_value: float | None = None,
+    guard_factor: float | None = None,
+    strategy_label: str | None = None,
 ) -> tuple[bool, float, str]:
     """Determine whether we can stack another position in the same direction."""
     if not PYRAMID_ENABLED:
@@ -1280,8 +1876,14 @@ def evaluate_pyramiding(
     total_profit = sum(float(getattr(p, "profit", 0.0) or 0.0) for p in same_direction_positions)
     losing_leg = total_profit < 0
 
+    strategy_label_lower = (strategy_label or "").lower()
+    is_mean_reversion = "mean" in strategy_label_lower and "reversion" in strategy_label_lower
+
     if losing_leg and len(same_direction_positions) >= PYRAMID_MAX_LOSING_POSITIONS:
         return False, 1.0, "losing stack limit reached"
+
+    if is_mean_reversion and losing_leg and len(same_direction_positions) >= MEAN_REVERSION_MAX_LOSING_POSITIONS:
+        return False, 1.0, "mean reversion losing stack cap"
 
     drawdown_same, drawdown_opposite, worst_drawdown_atr, total_drawdown_atr = _calculate_drawdown_pressure_atr(
         positions,
@@ -1289,6 +1891,17 @@ def evaluate_pyramiding(
         signal,
     )
     drawdown_pressure = drawdown_same if drawdown_same > 0 else max(drawdown_opposite, worst_drawdown_atr * 0.5)
+    combined_draw_pressure = max(drawdown_pressure, total_drawdown_atr)
+
+    rescue_mode = False
+    if is_mean_reversion and losing_leg:
+        if combined_draw_pressure >= MEAN_REVERSION_STACK_HARD_CAP_ATR:
+            return False, 1.0, f"mean reversion guard: adverse {combined_draw_pressure:.2f} ATR"
+        if combined_draw_pressure >= MEAN_REVERSION_STACK_DRAW_LIMIT_ATR:
+            if candidate_confidence >= MEAN_REVERSION_STACK_RESCUE_CONFIDENCE and len(same_direction_positions) < MEAN_REVERSION_MAX_LOSING_POSITIONS:
+                rescue_mode = True
+            else:
+                return False, 1.0, "mean reversion guard: waiting for stabilization"
 
     confidence_bonus = max(0.0, candidate_confidence - PYRAMID_MIN_CONFIDENCE)
     stack_load_ratio = len(same_direction_positions) / max(1, PYRAMID_MAX_ENTRIES_PER_SIDE)
@@ -1298,6 +1911,9 @@ def evaluate_pyramiding(
         drawdown_scale = max(0.55, 1.0 - min(2.5, drawdown_pressure) * 0.2)
         risk_boost = base_scale * drawdown_scale
         rationale = "averaging into drawdown"
+        if rescue_mode:
+            risk_boost *= MEAN_REVERSION_STACK_RESCUE_SCALE
+            rationale = "mean reversion rescue add"
         if drawdown_pressure > 0:
             rationale += f" ({drawdown_pressure:.2f} ATR adverse)"
     else:
@@ -1309,11 +1925,19 @@ def evaluate_pyramiding(
             rationale += f" (confidence +{confidence_bonus:.2f})"
 
     stack_scale = max(0.6, 1.0 - stack_load_ratio * 0.25)
+    if is_mean_reversion and losing_leg:
+        stack_scale = min(stack_scale, 0.8)
     risk_boost *= stack_scale
     if stack_load_ratio > 0:
         rationale += f", stack {len(same_direction_positions)}/{PYRAMID_MAX_ENTRIES_PER_SIDE}"
 
-    correlation_block, correlation_multiplier = should_limit_correlation_exposure(symbol, signal)
+    correlation_block, correlation_multiplier = should_limit_correlation_exposure(
+        symbol,
+        signal,
+        confidence=candidate_confidence,
+        guard_factor=guard_factor,
+        drawdown_pressure=drawdown_pressure,
+    )
     if correlation_block:
         return False, 1.0, "correlation limit"
 
@@ -1815,6 +2439,7 @@ def send_order(
     atr: float | None = None,
     sl_mult: float | None = None,
     tp_mult: float | None = None,
+    correlation_context: dict[str, float] | None = None,
 ):
     if not ensure_connection_ready():
         print("Aborting send_order because MT5 connection is not ready.")
@@ -1850,7 +2475,14 @@ def send_order(
             atr_reference = atr_value
         
         # Apply correlation management
-        should_block, correlation_multiplier = should_limit_correlation_exposure(symbol, signal)
+        correlation_context = correlation_context or {}
+        should_block, correlation_multiplier = should_limit_correlation_exposure(
+            symbol,
+            signal,
+            confidence=correlation_context.get("confidence"),
+            guard_factor=correlation_context.get("guard_factor"),
+            drawdown_pressure=correlation_context.get("drawdown"),
+        )
         if should_block:
             print(f"🚫 {symbol}: Trade blocked due to correlation limits")
             return
@@ -1950,6 +2582,48 @@ def send_order(
     else:
         print(f"OrderSend success for {symbol}: {signal} at {price} | SL={request.get('sl')} TP={request.get('tp')}")
 
+def log_manual_stop_summary(scan_counter: int) -> None:
+    """Emit a concise account summary when run is stopped manually."""
+    print(f"\n🛑 Manual stop requested — wrapping up after scan #{scan_counter}.")
+
+    account_info = mt5.account_info()
+    if account_info:
+        print(
+            "💼 Final account snapshot -> "
+            f"Balance: {account_info.balance:.2f} | Equity: {account_info.equity:.2f} | "
+            f"Free Margin: {account_info.margin_free:.2f} | Margin Used: {account_info.margin:.2f} | "
+            f"Open PnL: {account_info.profit:.2f}"
+        )
+        baseline_equity = run_baseline_snapshot.get("equity")
+        baseline_balance = run_baseline_snapshot.get("balance")
+        if baseline_equity is not None and baseline_balance is not None:
+            baseline_equity_val = float(baseline_equity)
+            baseline_balance_val = float(baseline_balance)
+            equity_delta = account_info.equity - baseline_equity_val
+            balance_delta = account_info.balance - baseline_balance_val
+            equity_pct = (equity_delta / baseline_equity_val) if baseline_equity_val else 0.0
+            print(
+                "📈 Final run performance -> "
+                f"Equity Δ {equity_delta:+.2f} ({equity_pct:+.2%}) | Balance Δ {balance_delta:+.2f}"
+            )
+        else:
+            print("📈 Final run performance -> baseline snapshot not captured yet.")
+    else:
+        print("💼 Final account snapshot unavailable (could not query MT5).")
+
+    open_positions = mt5.positions_get() or []
+    if open_positions:
+        print("📂 Final open positions -> " + summarize_open_positions(open_positions))
+    else:
+        print("📂 Final open positions -> none")
+
+    # Persist any guarded state if enabled
+    try:
+        save_risk_guard_state()
+    except Exception as exc:
+        print(f"⚠️  Failed to persist risk guard state during shutdown: {exc}")
+
+
 scan_counter = 0
 
 try:
@@ -1974,6 +2648,23 @@ try:
                 f"Free Margin: {account_info.margin_free:.2f} | Margin Used: {account_info.margin:.2f} | "
                 f"Open PnL: {account_info.profit:.2f}"
             )
+            if run_baseline_snapshot["equity"] is None:
+                run_baseline_snapshot["balance"] = account_info.balance
+                run_baseline_snapshot["equity"] = account_info.equity
+                run_baseline_snapshot["timestamp"] = now_local.isoformat()
+            else:
+                baseline_equity = float(run_baseline_snapshot.get("equity") or 0.0)
+                baseline_balance = float(run_baseline_snapshot.get("balance") or 0.0)
+                equity_delta = account_info.equity - baseline_equity
+                balance_delta = account_info.balance - baseline_balance
+                equity_pct = (equity_delta / baseline_equity) if baseline_equity else 0.0
+                margin_util = (account_info.margin / account_info.equity) if account_info.equity else 0.0
+                print(
+                    f"📈 Run performance -> Equity Δ {equity_delta:+.2f} ({equity_pct:+.2%}) | Balance Δ {balance_delta:+.2f}"
+                )
+                print(
+                    f"⚙️ Leverage usage -> Margin {account_info.margin:.2f} ({margin_util:.1%} of equity)"
+                )
         else:
             print("💼 Account snapshot unavailable (mt5.account_info() returned None).")
 
@@ -1984,24 +2675,7 @@ try:
 
         active_positions = mt5.positions_get() or []
         if active_positions:
-            position_summary: dict[str, dict[str, float]] = defaultdict(lambda: {'count': 0, 'buy': 0.0, 'sell': 0.0, 'pnl': 0.0})
-            for pos in active_positions:
-                stats = position_summary[pos.symbol]
-                stats['count'] += 1
-                stats['pnl'] += float(getattr(pos, 'profit', 0.0) or 0.0)
-                volume = float(getattr(pos, 'volume', 0.0) or 0.0)
-                if pos.type == mt5.POSITION_TYPE_BUY:
-                    stats['buy'] += volume
-                else:
-                    stats['sell'] += volume
-            summary_parts = []
-            for sym in sorted(position_summary.keys()):
-                stats = position_summary[sym]
-                net_vol = stats['buy'] - stats['sell']
-                summary_parts.append(
-                    f"{sym}: {int(stats['count'])} pos (buy {stats['buy']:.2f}, sell {stats['sell']:.2f}, net {net_vol:+.2f}, pnl {stats['pnl']:.2f})"
-                )
-            print("📂 Open positions -> " + " | ".join(summary_parts))
+            print("📂 Open positions -> " + summarize_open_positions(active_positions))
         else:
             print("📂 Open positions -> none")
 
@@ -2043,9 +2717,14 @@ try:
             weekly_dd = float(risk_guard_state.get("weekly_drawdown", 0.0))
             print(f"🛡️ Risk guard moderation: scaling risk to {guard_factor:.0%} (daily DD {daily_dd:.1%}, weekly DD {weekly_dd:.1%}).")
 
+        print(
+            f"🧮 Guard factors -> risk {guard_factor:.2f}, soft {soft_guard_factor:.2f}, combined {combined_guard_factor:.2f}"
+        )
+
         if SOFT_GUARD_ENABLED:
             transition = soft_guard_status.get("transition")
             soft_dd = float(soft_guard_status.get("drawdown", 0.0) or 0.0)
+            status_label = soft_guard_status.get("status", "clear")
             if transition:
                 t_type = transition.get("type")
                 if t_type == "block":
@@ -2055,8 +2734,13 @@ try:
                 elif t_type == "throttle":
                     throttle_val = float(transition.get("value", soft_guard_factor))
                     print(f"🩹 Soft equity guard: throttling risk to {throttle_val:.0%} (DD {soft_dd:.1%}).")
+                elif t_type == "status":
+                    print(f"🟡 Soft equity guard: status {status_label} (DD {soft_dd:.1%}, throttle {soft_guard_factor:.0%}).")
             elif not soft_guard_allowed:
                 print(f"🩸 Soft equity guard: blocking new entries (DD {soft_dd:.1%} of balance).")
+            elif status_label in ("alert", "caution"):
+                indicator = "🟠" if status_label == "alert" else "🟡"
+                print(f"{indicator} Soft equity guard: {status_label} mode (DD {soft_dd:.1%}, throttle {soft_guard_factor:.0%}).")
         
         for symbol in symbols:
             cycle_stats['symbols_total'] += 1
@@ -2111,7 +2795,10 @@ try:
             
             # Advanced stop management for existing positions
             if atr_value:
-                manage_position_stops(symbol, atr_value)
+                stop_stats = manage_position_stops(symbol, atr_value)
+                if stop_stats:
+                    for key, value in stop_stats.items():
+                        cycle_stats[key] += value
             
             positions = mt5.positions_get(symbol=symbol) or []
             if positions:
@@ -2197,6 +2884,7 @@ try:
                         strategy_atr_value,
                         reference_price,
                         positions,
+                        guard_factor=combined_guard_factor,
                     )
                     if not micro_pass:
                         if strategy_key == 'mean_reversion' and current_regime == 'RANGING':
@@ -2314,9 +3002,43 @@ try:
                 signal_type = best_candidate['signal']
                 
                 if signal_type == 'buy':
+                    context_atr = best_candidate.get('atr_value') or strategy_atr_value
                     if have_sell and not ALLOW_HEDGING:
-                        print(f"{symbol}: skipping {best_candidate['label']} buy (priority {best_candidate['priority']}) because opposite position is open")
-                        cycle_stats['signals_skipped_position_conflict'] += 1
+                        should_exit, exit_reason = should_force_counter_exit(
+                            symbol,
+                            'buy',
+                            best_candidate,
+                            positions,
+                            context_atr,
+                            scan_counter,
+                        )
+                        if should_exit:
+                            closed = close_symbol_positions(
+                                symbol,
+                                side='sell',
+                                reason=f"{best_candidate['label']}-flip",
+                            )
+                            if closed > 0:
+                                cycle_stats['counter_signal_exits'] += closed
+                                clear_counter_signal_state(symbol)
+                                positions = mt5.positions_get(symbol=symbol) or []
+                                have_buy = any(p.type == mt5.POSITION_TYPE_BUY for p in positions)
+                                have_sell = any(p.type == mt5.POSITION_TYPE_SELL for p in positions)
+                                print(
+                                    f"{symbol}: Counter-signal exit cleared {closed} sell positions ({exit_reason}); enabling buy entry."
+                                )
+                            else:
+                                print(
+                                    f"{symbol}: Counter-signal exit triggered but failed to flatten sells ({exit_reason}); skipping buy."
+                                )
+                                cycle_stats['signals_skipped_position_conflict'] += 1
+                                continue
+                        else:
+                            print(
+                                f"{symbol}: skipping {best_candidate['label']} buy (priority {best_candidate['priority']}) because opposite position is open"
+                            )
+                            cycle_stats['signals_skipped_position_conflict'] += 1
+                            continue
                     elif have_buy:
                         allow_stack, risk_scale, rationale = evaluate_pyramiding(
                             symbol,
@@ -2324,6 +3046,8 @@ try:
                             positions,
                             best_candidate['confidence'],
                             strategy_atr_value,
+                            guard_factor=combined_guard_factor,
+                            strategy_label=best_candidate.get('label'),
                         )
                         if allow_stack:
                             stacked_multiplier = min(
@@ -2331,6 +3055,20 @@ try:
                                 best_candidate['risk_multiplier'] * risk_scale,
                             )
                             order_comment = build_order_comment(best_candidate['label'], 'buy', best_candidate['priority'])
+                            context_drawdown = 0.0
+                            context_atr = best_candidate.get('atr_value') or strategy_atr_value
+                            if context_atr:
+                                same_dd, opposite_dd, worst_dd, total_dd = _calculate_drawdown_pressure_atr(
+                                    positions,
+                                    context_atr,
+                                    'buy',
+                                )
+                                context_drawdown = same_dd if same_dd > 0 else max(opposite_dd, worst_dd, total_dd)
+                            correlation_context = {
+                                "confidence": best_candidate['confidence'],
+                                "guard_factor": combined_guard_factor,
+                                "drawdown": context_drawdown,
+                            }
                             print(
                                 f"{symbol}: pyramiding BUY via {best_candidate['label']} (priority {best_candidate['priority']}, confidence {best_candidate['confidence']:.2f}) | {rationale} | comment {order_comment}"
                             )
@@ -2344,12 +3082,26 @@ try:
                                 atr=best_candidate['atr_value'],
                                 sl_mult=best_candidate['sl_mult'],
                                 tp_mult=best_candidate['tp_mult'],
+                                correlation_context=correlation_context,
                             )
                         else:
                             print(f"{symbol}: already in buy position, ignoring {best_candidate['label']} (priority {best_candidate['priority']})")
                             cycle_stats['signals_skipped_duplicate_side'] += 1
                     else:
                         order_comment = build_order_comment(best_candidate['label'], 'buy', best_candidate['priority'])
+                        context_drawdown = 0.0
+                        if context_atr:
+                            same_dd, opposite_dd, worst_dd, total_dd = _calculate_drawdown_pressure_atr(
+                                positions,
+                                context_atr,
+                                'buy',
+                            )
+                            context_drawdown = same_dd if same_dd > 0 else max(opposite_dd, worst_dd, total_dd)
+                        correlation_context = {
+                            "confidence": best_candidate['confidence'],
+                            "guard_factor": combined_guard_factor,
+                            "drawdown": context_drawdown,
+                        }
                         print(f"{symbol}: executing BUY via {best_candidate['label']} (priority {best_candidate['priority']}, confidence {best_candidate['confidence']:.2f}) | comment {order_comment}")
                         cycle_stats['signals_executed'] += 1
                         send_order(
@@ -2360,12 +3112,47 @@ try:
                             atr=best_candidate['atr_value'],
                             sl_mult=best_candidate['sl_mult'],
                             tp_mult=best_candidate['tp_mult'],
+                            correlation_context=correlation_context,
                         )
                         have_buy = True
                 elif signal_type == 'sell':
+                    context_atr = best_candidate.get('atr_value') or strategy_atr_value
                     if have_buy and not ALLOW_HEDGING:
-                        print(f"{symbol}: skipping {best_candidate['label']} sell (priority {best_candidate['priority']}) because opposite position is open")
-                        cycle_stats['signals_skipped_position_conflict'] += 1
+                        should_exit, exit_reason = should_force_counter_exit(
+                            symbol,
+                            'sell',
+                            best_candidate,
+                            positions,
+                            context_atr,
+                            scan_counter,
+                        )
+                        if should_exit:
+                            closed = close_symbol_positions(
+                                symbol,
+                                side='buy',
+                                reason=f"{best_candidate['label']}-flip",
+                            )
+                            if closed > 0:
+                                cycle_stats['counter_signal_exits'] += closed
+                                clear_counter_signal_state(symbol)
+                                positions = mt5.positions_get(symbol=symbol) or []
+                                have_buy = any(p.type == mt5.POSITION_TYPE_BUY for p in positions)
+                                have_sell = any(p.type == mt5.POSITION_TYPE_SELL for p in positions)
+                                print(
+                                    f"{symbol}: Counter-signal exit cleared {closed} buy positions ({exit_reason}); enabling sell entry."
+                                )
+                            else:
+                                print(
+                                    f"{symbol}: Counter-signal exit triggered but failed to flatten buys ({exit_reason}); skipping sell."
+                                )
+                                cycle_stats['signals_skipped_position_conflict'] += 1
+                                continue
+                        else:
+                            print(
+                                f"{symbol}: skipping {best_candidate['label']} sell (priority {best_candidate['priority']}) because opposite position is open"
+                            )
+                            cycle_stats['signals_skipped_position_conflict'] += 1
+                            continue
                     elif have_sell:
                         allow_stack, risk_scale, rationale = evaluate_pyramiding(
                             symbol,
@@ -2373,6 +3160,8 @@ try:
                             positions,
                             best_candidate['confidence'],
                             strategy_atr_value,
+                            guard_factor=combined_guard_factor,
+                            strategy_label=best_candidate.get('label'),
                         )
                         if allow_stack:
                             stacked_multiplier = min(
@@ -2380,6 +3169,20 @@ try:
                                 best_candidate['risk_multiplier'] * risk_scale,
                             )
                             order_comment = build_order_comment(best_candidate['label'], 'sell', best_candidate['priority'])
+                            context_drawdown = 0.0
+                            context_atr = best_candidate.get('atr_value') or strategy_atr_value
+                            if context_atr:
+                                same_dd, opposite_dd, worst_dd, total_dd = _calculate_drawdown_pressure_atr(
+                                    positions,
+                                    context_atr,
+                                    'sell',
+                                )
+                                context_drawdown = same_dd if same_dd > 0 else max(opposite_dd, worst_dd, total_dd)
+                            correlation_context = {
+                                "confidence": best_candidate['confidence'],
+                                "guard_factor": combined_guard_factor,
+                                "drawdown": context_drawdown,
+                            }
                             print(
                                 f"{symbol}: pyramiding SELL via {best_candidate['label']} (priority {best_candidate['priority']}, confidence {best_candidate['confidence']:.2f}) | {rationale} | comment {order_comment}"
                             )
@@ -2393,12 +3196,26 @@ try:
                                 atr=best_candidate['atr_value'],
                                 sl_mult=best_candidate['sl_mult'],
                                 tp_mult=best_candidate['tp_mult'],
+                                correlation_context=correlation_context,
                             )
                         else:
                             print(f"{symbol}: already in sell position, ignoring {best_candidate['label']} (priority {best_candidate['priority']})")
                             cycle_stats['signals_skipped_duplicate_side'] += 1
                     else:
                         order_comment = build_order_comment(best_candidate['label'], 'sell', best_candidate['priority'])
+                        context_drawdown = 0.0
+                        if context_atr:
+                            same_dd, opposite_dd, worst_dd, total_dd = _calculate_drawdown_pressure_atr(
+                                positions,
+                                context_atr,
+                                'sell',
+                            )
+                            context_drawdown = same_dd if same_dd > 0 else max(opposite_dd, worst_dd, total_dd)
+                        correlation_context = {
+                            "confidence": best_candidate['confidence'],
+                            "guard_factor": combined_guard_factor,
+                            "drawdown": context_drawdown,
+                        }
                         print(f"{symbol}: executing SELL via {best_candidate['label']} (priority {best_candidate['priority']}, confidence {best_candidate['confidence']:.2f}) | comment {order_comment}")
                         cycle_stats['signals_executed'] += 1
                         send_order(
@@ -2409,6 +3226,7 @@ try:
                             atr=best_candidate['atr_value'],
                             sl_mult=best_candidate['sl_mult'],
                             tp_mult=best_candidate['tp_mult'],
+                            correlation_context=correlation_context,
                         )
                         have_sell = True
                 
@@ -2425,7 +3243,14 @@ try:
             f"open-symbols {cycle_stats['symbols_with_open_positions']} | "
             f"candidates {cycle_stats['candidates_total']} | executed {cycle_stats['signals_executed']} | pyramids {cycle_stats['signals_executed_pyramid']} | "
             f"confidence-filtered {cycle_stats['signals_filtered_confidence']} | micro-filtered {cycle_stats['signals_filtered_micro']} | "
-            f"position-blocked {cycle_stats['signals_skipped_position_conflict']} | duplicates {cycle_stats['signals_skipped_duplicate_side']} | guard-blocked {cycle_stats['signals_skipped_guard']}"
+            f"position-blocked {cycle_stats['signals_skipped_position_conflict']} | duplicates {cycle_stats['signals_skipped_duplicate_side']} | guard-blocked {cycle_stats['signals_skipped_guard']} | "
+            f"counter-exits {cycle_stats['counter_signal_exits']}"
+        )
+        print(
+            "🛠️ Stop management -> "
+            f"breakeven {cycle_stats['stops_breakeven']} | trailing {cycle_stats['stops_trailing']} | "
+            f"partials {cycle_stats['partials_taken']} | partial-missed {cycle_stats['partials_unavailable']} | "
+            f"adjustment-fails {cycle_stats['stops_failed'] + cycle_stats['partials_failed']}"
         )
         print(
             "📊 Strategy diagnostics -> "
@@ -2434,5 +3259,7 @@ try:
         )
         print(f"⏱️ Next scan in {SCAN_INTERVAL_SECONDS} seconds...")
         time.sleep(SCAN_INTERVAL_SECONDS)
+except KeyboardInterrupt:
+    log_manual_stop_summary(scan_counter)
 finally:
     mt5.shutdown()
