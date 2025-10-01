@@ -1,6 +1,6 @@
 import MetaTrader5 as mt5
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pytz
 from agents import MeanReversionAgent, MACrossoverAgent, MomentumTrendAgent, BreakoutAgent, DonchianChannelAgent
 import time
@@ -370,6 +370,14 @@ AGGRESSIVE_REGIME_THRESHOLD = 0.05  # Minimal regime weight still allowed when a
 AGGRESSIVE_MICRO_TOLERANCE = 0.25   # Allow counter-momentum within 25% of threshold
 AGGRESSIVE_MICRO_MIN_RATIO = 0.25   # Require at least 25% of base threshold in the trade direction
 HIGH_CONFIDENCE_BOOST_CAP = 1.5     # Max boost applied when confidence is exceptional
+
+# Pyramiding (position stacking) configuration
+PYRAMID_ENABLED = True
+PYRAMID_MAX_ENTRIES_PER_SIDE = 3          # Total entries (initial + adds) allowed per direction
+PYRAMID_MIN_CONFIDENCE = 0.9              # Require strong conviction to stack
+PYRAMID_MAX_LOSING_POSITIONS = 2          # Limit averaging down to one additional entry
+PYRAMID_WINNING_RISK_BOOST = 1.25         # Risk multiplier boost when scaling into profitable legs
+PYRAMID_LOSING_RISK_BOOST = 1.05          # Slight size boost when averaging into drawdown
 
 # Trade quality filters
 SPREAD_POINTS_LIMIT = 10            # Maximum raw spread in points before skipping
@@ -894,7 +902,13 @@ def confirm_with_micro_momentum(
         soft_pass = False
         aligned_momentum = momentum_score if signal == 'buy' else -momentum_score
         tolerance = threshold * AGGRESSIVE_MICRO_TOLERANCE
-        required_alignment = threshold * AGGRESSIVE_MICRO_MIN_RATIO
+        alignment_ratio = AGGRESSIVE_MICRO_MIN_RATIO
+        if regime == 'VOLATILE':
+            alignment_ratio *= 0.5
+        elif regime == 'RANGING':
+            alignment_ratio *= 0.75
+        alignment_ratio = max(0.05, alignment_ratio)
+        required_alignment = threshold * alignment_ratio
 
         if signal == 'buy':
             if momentum_score >= threshold:
@@ -914,7 +928,9 @@ def confirm_with_micro_momentum(
                 soft_pass = True
                 override_used = True
                 tolerance_pct = f"±{tolerance:.2%}"
-                required_pct = f"≥ {required_alignment:.2%}" if signal == 'buy' else f"≤ {-required_alignment:.2%}"
+                required_symbol = "≥" if signal == 'buy' else "≤"
+                required_value = required_alignment if signal == 'buy' else -required_alignment
+                required_pct = f"{required_symbol} {required_value:.2%}"
                 print(
                     f"⚡ {symbol}: Aggressive micro override for {signal.upper()} (aligned {aligned_momentum:+.2%} within tolerance {tolerance_pct}, required {required_pct})."
                 )
@@ -1024,6 +1040,37 @@ def should_limit_correlation_exposure(symbol: str, signal: str) -> tuple[bool, f
     except Exception as e:
         print(f"Error in correlation check: {e}")
         return False, 1.0  # Default to allow if error
+
+
+def evaluate_pyramiding(symbol: str, signal: str, positions: list, candidate_confidence: float) -> tuple[bool, float, str]:
+    """Determine whether we can stack another position in the same direction."""
+    if not PYRAMID_ENABLED:
+        return False, 1.0, "pyramiding disabled"
+
+    if signal not in ("buy", "sell"):
+        return False, 1.0, "invalid signal"
+
+    direction_type = mt5.POSITION_TYPE_BUY if signal == "buy" else mt5.POSITION_TYPE_SELL
+    same_direction_positions = [p for p in positions if p.type == direction_type]
+
+    if not same_direction_positions:
+        return False, 1.0, "no base position"
+
+    if len(same_direction_positions) >= PYRAMID_MAX_ENTRIES_PER_SIDE:
+        return False, 1.0, "max stacks reached"
+
+    if candidate_confidence < PYRAMID_MIN_CONFIDENCE:
+        return False, 1.0, "confidence below pyramid threshold"
+
+    total_profit = sum(float(getattr(p, "profit", 0.0) or 0.0) for p in same_direction_positions)
+    losing_leg = total_profit < 0
+
+    if losing_leg and len(same_direction_positions) >= PYRAMID_MAX_LOSING_POSITIONS:
+        return False, 1.0, "losing stack limit reached"
+
+    risk_boost = PYRAMID_LOSING_RISK_BOOST if losing_leg else PYRAMID_WINNING_RISK_BOOST
+    rationale = "averaging into drawdown" if losing_leg else "scaling a winner"
+    return True, risk_boost, rationale
 
 
 def calculate_risk_multiplier(session_priority: int, regime_weight: float, performance_weight: float) -> float:
@@ -1658,7 +1705,7 @@ try:
 
         cycle_stats: dict[str, int] = defaultdict(int)
         now_local = datetime.now()
-        now_utc = datetime.utcnow()
+        now_utc = datetime.now(timezone.utc)
         print("\n" + "=" * 68)
         print(f"🔁 Scan #{scan_counter} | Local {now_local.strftime('%Y-%m-%d %H:%M:%S')} | UTC {now_utc.strftime('%H:%M:%S')}")
 
@@ -1982,8 +2029,35 @@ try:
                         print(f"{symbol}: skipping {best_candidate['label']} buy (priority {best_candidate['priority']}) because opposite position is open")
                         cycle_stats['signals_skipped_position_conflict'] += 1
                     elif have_buy:
-                        print(f"{symbol}: already in buy position, ignoring {best_candidate['label']} (priority {best_candidate['priority']})")
-                        cycle_stats['signals_skipped_duplicate_side'] += 1
+                        allow_stack, risk_scale, rationale = evaluate_pyramiding(
+                            symbol,
+                            'buy',
+                            positions,
+                            best_candidate['confidence'],
+                        )
+                        if allow_stack:
+                            stacked_multiplier = min(
+                                RISK_MULTIPLIER_MAX,
+                                best_candidate['risk_multiplier'] * risk_scale,
+                            )
+                            order_comment = build_order_comment(best_candidate['label'], 'buy', best_candidate['priority'])
+                            print(
+                                f"{symbol}: pyramiding BUY via {best_candidate['label']} (priority {best_candidate['priority']}, confidence {best_candidate['confidence']:.2f}) | {rationale} | comment {order_comment}"
+                            )
+                            cycle_stats['signals_executed'] += 1
+                            cycle_stats['signals_executed_pyramid'] += 1
+                            send_order(
+                                symbol,
+                                'buy',
+                                comment=order_comment,
+                                risk_multiplier=stacked_multiplier,
+                                atr=best_candidate['atr_value'],
+                                sl_mult=best_candidate['sl_mult'],
+                                tp_mult=best_candidate['tp_mult'],
+                            )
+                        else:
+                            print(f"{symbol}: already in buy position, ignoring {best_candidate['label']} (priority {best_candidate['priority']})")
+                            cycle_stats['signals_skipped_duplicate_side'] += 1
                     else:
                         order_comment = build_order_comment(best_candidate['label'], 'buy', best_candidate['priority'])
                         print(f"{symbol}: executing BUY via {best_candidate['label']} (priority {best_candidate['priority']}, confidence {best_candidate['confidence']:.2f}) | comment {order_comment}")
@@ -2003,8 +2077,35 @@ try:
                         print(f"{symbol}: skipping {best_candidate['label']} sell (priority {best_candidate['priority']}) because opposite position is open")
                         cycle_stats['signals_skipped_position_conflict'] += 1
                     elif have_sell:
-                        print(f"{symbol}: already in sell position, ignoring {best_candidate['label']} (priority {best_candidate['priority']})")
-                        cycle_stats['signals_skipped_duplicate_side'] += 1
+                        allow_stack, risk_scale, rationale = evaluate_pyramiding(
+                            symbol,
+                            'sell',
+                            positions,
+                            best_candidate['confidence'],
+                        )
+                        if allow_stack:
+                            stacked_multiplier = min(
+                                RISK_MULTIPLIER_MAX,
+                                best_candidate['risk_multiplier'] * risk_scale,
+                            )
+                            order_comment = build_order_comment(best_candidate['label'], 'sell', best_candidate['priority'])
+                            print(
+                                f"{symbol}: pyramiding SELL via {best_candidate['label']} (priority {best_candidate['priority']}, confidence {best_candidate['confidence']:.2f}) | {rationale} | comment {order_comment}"
+                            )
+                            cycle_stats['signals_executed'] += 1
+                            cycle_stats['signals_executed_pyramid'] += 1
+                            send_order(
+                                symbol,
+                                'sell',
+                                comment=order_comment,
+                                risk_multiplier=stacked_multiplier,
+                                atr=best_candidate['atr_value'],
+                                sl_mult=best_candidate['sl_mult'],
+                                tp_mult=best_candidate['tp_mult'],
+                            )
+                        else:
+                            print(f"{symbol}: already in sell position, ignoring {best_candidate['label']} (priority {best_candidate['priority']})")
+                            cycle_stats['signals_skipped_duplicate_side'] += 1
                     else:
                         order_comment = build_order_comment(best_candidate['label'], 'sell', best_candidate['priority'])
                         print(f"{symbol}: executing SELL via {best_candidate['label']} (priority {best_candidate['priority']}, confidence {best_candidate['confidence']:.2f}) | comment {order_comment}")
@@ -2031,7 +2132,7 @@ try:
             f"📒 Scan #{scan_counter} summary -> "
             f"symbols processed {cycle_stats['symbols_total']}/{len(symbols)} | "
             f"open-symbols {cycle_stats['symbols_with_open_positions']} | "
-            f"candidates {cycle_stats['candidates_total']} | executed {cycle_stats['signals_executed']} | "
+            f"candidates {cycle_stats['candidates_total']} | executed {cycle_stats['signals_executed']} | pyramids {cycle_stats['signals_executed_pyramid']} | "
             f"confidence-filtered {cycle_stats['signals_filtered_confidence']} | micro-filtered {cycle_stats['signals_filtered_micro']} | "
             f"position-blocked {cycle_stats['signals_skipped_position_conflict']} | duplicates {cycle_stats['signals_skipped_duplicate_side']} | guard-blocked {cycle_stats['signals_skipped_guard']}"
         )
