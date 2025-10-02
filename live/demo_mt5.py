@@ -45,14 +45,21 @@ class ConsoleTee:
         self.encoding = getattr(primary, "encoding", "utf-8")
 
     def write(self, data):
-        for stream in self._streams:
-            stream.write(data)
-            stream.flush()
+        for stream in list(self._streams):
+            try:
+                stream.write(data)
+                stream.flush()
+            except Exception:
+                # Streams may be closed during interpreter shutdown; skip failures gracefully.
+                continue
         return len(data)
 
     def flush(self):
-        for stream in self._streams:
-            stream.flush()
+        for stream in list(self._streams):
+            try:
+                stream.flush()
+            except Exception:
+                continue
 
     def isatty(self):
         return any(getattr(stream, "isatty", lambda: False)() for stream in self._streams)
@@ -127,6 +134,8 @@ class EmergencyStop(RuntimeError):
     """Raised when the remote kill switch requests an immediate shutdown."""
 
 
+SCRIPT_START_TIME = datetime.now(timezone.utc)
+TELEGRAM_REPLAY_GRACE_SECONDS = 5
 KILL_CONFIRM_WINDOW_SECONDS = 45
 
 kill_switch_state: dict[str, Any] = {
@@ -139,11 +148,27 @@ kill_switch_state: dict[str, Any] = {
     "engaged_at": None,
     "confirmed_by": None,
     "notified": False,
+    "suppress_resume_notify": False,
 }
 
 DEAL_ENTRY_IN = getattr(mt5, "DEAL_ENTRY_IN", 0)
 DEAL_ENTRY_OUT = getattr(mt5, "DEAL_ENTRY_OUT", 1)
 DEAL_ENTRY_INOUT = getattr(mt5, "DEAL_ENTRY_INOUT", 2)
+DEAL_REASON_SL = getattr(mt5, "DEAL_REASON_SL", 0)
+DEAL_REASON_TP = getattr(mt5, "DEAL_REASON_TP", 0)
+DEAL_REASON_CLIENT = getattr(mt5, "DEAL_REASON_CLIENT", 0)
+DEAL_REASON_MOBILE = getattr(mt5, "DEAL_REASON_MOBILE", 0)
+DEAL_REASON_WEB = getattr(mt5, "DEAL_REASON_WEB", 0)
+DEAL_REASON_EXPERT = getattr(mt5, "DEAL_REASON_EXPERT", 0)
+DEAL_REASON_SCRIPT = getattr(mt5, "DEAL_REASON_SCRIPT", 0)
+
+MANUAL_CLOSE_REASONS = {
+    DEAL_REASON_CLIENT,
+    DEAL_REASON_MOBILE,
+    DEAL_REASON_WEB,
+    DEAL_REASON_EXPERT,
+    DEAL_REASON_SCRIPT,
+}
 
 
 def _generate_comment_code(label: str) -> str:
@@ -206,6 +231,9 @@ margin_guard_state: dict[str, float | bool | str] = {
     "usage": 0.0,
     "free_ratio": 1.0,
     "severity": 0.0,
+    "last_alert_status": "clear",
+    "last_alert_ts": None,
+    "last_alert_bucket": -1.0,
 }
 
 counter_signal_tracker: dict[str, dict[str, float | int | str]] = {}
@@ -214,6 +242,7 @@ counter_signal_tracker: dict[str, dict[str, float | int | str]] = {}
 TELEGRAM_COMMAND_QUEUE: "queue.Queue[dict[str, object]]" = queue.Queue()
 TELEGRAM_CONTROLLER: TelegramController | None = None
 TELEGRAM_ALLOWED_IDS: set[int] = set()
+TELEGRAM_KNOWN_CHATS: set[int] = set()
 TELEGRAM_POLL_SECONDS = 2.5
 TELEGRAM_PAUSE_SLEEP_SECONDS = 3.0
 DEFAULT_TELEGRAM_ALLOWED_IDS: set[int] = {6401257809}
@@ -239,6 +268,26 @@ risk_profile_state: dict[str, object | None] = {
     "applied_at": None,
     "settings": {},
 }
+
+def register_telegram_chat(chat_id: int) -> None:
+    if not isinstance(chat_id, int):
+        return
+    TELEGRAM_KNOWN_CHATS.add(chat_id)
+
+
+def telegram_notify(message: str, chat_ids: Iterable[int] | None = None) -> None:
+    if not message:
+        return
+    targets = list(chat_ids) if chat_ids is not None else list(TELEGRAM_KNOWN_CHATS)
+    if not targets:
+        if TELEGRAM_ALLOWED_IDS:
+            targets = list(TELEGRAM_ALLOWED_IDS)
+        else:
+            return
+
+    if TELEGRAM_CONTROLLER:
+        TELEGRAM_CONTROLLER.broadcast_message(message, targets)
+
 
 def load_strategy_performance():
     """Load strategy performance from file."""
@@ -829,7 +878,7 @@ def evaluate_margin_guard(account_info) -> dict[str, float | bool | str | None]:
         "severity": severity,
     })
 
-    return {
+    payload = {
         "allowed": allowed,
         "throttle": throttle,
         "usage": usage,
@@ -838,6 +887,10 @@ def evaluate_margin_guard(account_info) -> dict[str, float | bool | str | None]:
         "status": status,
         "severity": severity,
     }
+
+    maybe_notify_margin_guard_event(payload, transition)
+
+    return payload
 
 
 def _parse_allowed_ids(raw: str | None) -> set[int]:
@@ -974,8 +1027,34 @@ def _reset_kill_state() -> None:
                 "engaged_at": None,
                 "confirmed_by": None,
                 "notified": False,
+                "suppress_resume_notify": False,
             }
         )
+
+
+def resume_kill_switch(user_id: int | None) -> tuple[bool, dict[str, Any]]:
+    with kill_state_lock:
+        engaged = bool(kill_switch_state.get("engaged"))
+        pending = bool(kill_switch_state.get("pending"))
+        if not engaged and not pending:
+            return False, dict(kill_switch_state)
+        kill_switch_state.update(
+            {
+                "pending": False,
+                "requested_at": None,
+                "expires_at": None,
+                "user_id": None,
+                "reason": "",
+                "engaged": False,
+                "engaged_at": None,
+                "confirmed_by": None,
+                "notified": False,
+                "suppress_resume_notify": True,
+            }
+        )
+        snapshot = dict(kill_switch_state)
+    set_trading_paused(False, reason="Kill switch cleared", source="telegram", user_id=user_id)
+    return True, snapshot
 
 
 def _expire_kill_request_if_needed(now: Optional[datetime] = None) -> None:
@@ -1083,6 +1162,300 @@ def format_risk_profile_summary(line_prefix: str = "• ") -> str:
     return "\n".join(lines)
 
 
+def format_margin_guard_line(
+    status: dict[str, object] | None = None,
+    line_prefix: str = "• ",
+) -> str:
+    """Render a single-line summary for the margin guard."""
+    state = status or margin_guard_state
+    usage = float(state.get("usage", 0.0) or 0.0)
+    free_ratio = float(state.get("free_ratio", 1.0) or 1.0)
+    throttle = float(state.get("throttle", 1.0) or 1.0)
+    severity = float(state.get("severity", 0.0) or 0.0)
+    allowed = bool(state.get("allowed", True))
+    guard_status = str(state.get("status") or ("blocked" if not allowed else "clear"))
+
+    status_token = {
+        "blocked": "⛔ Blocked",
+        "throttle": "⚠️ Throttled",
+        "clear": "✅ Clear",
+    }.get(guard_status, f"ℹ️ {guard_status.title()}")
+
+    if not allowed and guard_status != "blocked":
+        status_token += " (orders halted)"
+
+    throttle_display = f"x{max(0.0, throttle):.2f}"
+    usage_display = f"{max(0.0, usage):.0%}"
+    free_display = f"{max(0.0, free_ratio):.0%}"
+    severity_display = f"{max(0.0, min(1.0, severity)):.0%}"
+
+    return (
+        f"{line_prefix}Margin guard {status_token} · usage {usage_display} · free {free_display} · "
+        f"throttle {throttle_display} · severity {severity_display}"
+    )
+
+
+def format_guard_status_summary(line_prefix: str = "• ") -> str:
+    """Produce a compact multi-guard snapshot for Telegram delivery."""
+    lines: list[str] = []
+
+    soft_status = str(soft_guard_state.get("status") or "clear")
+    soft_blocked = bool(soft_guard_state.get("blocked", False))
+    soft_throttle = float(soft_guard_state.get("throttle", 1.0) or 1.0)
+    soft_drawdown = float(soft_guard_state.get("drawdown", 0.0) or 0.0)
+
+    soft_token = {
+        "blocked": "⛔ Blocked",
+        "alert": "⚠️ Alert",
+        "throttle": "⚠️ Alert",
+        "caution": "🟠 Caution",
+        "soft": "🟡 Soft",
+        "clear": "✅ Clear",
+    }.get(soft_status, soft_status.title())
+
+    if soft_blocked and "Blocked" not in soft_token:
+        soft_token = f"⛔ {soft_token}"
+
+    lines.append(
+        f"{line_prefix}Soft guard {soft_token} · drawdown {max(0.0, soft_drawdown):.1%} · throttle x{max(0.0, soft_throttle):.2f}"
+    )
+
+    lines.append(format_margin_guard_line(line_prefix=line_prefix))
+
+    daily_dd = float(risk_guard_state.get("daily_drawdown", 0.0) or 0.0)
+    weekly_dd = float(risk_guard_state.get("weekly_drawdown", 0.0) or 0.0)
+    daily_blocked = bool(risk_guard_state.get("daily_blocked", False))
+    weekly_blocked = bool(risk_guard_state.get("weekly_blocked", False))
+
+    daily_token = "⛔" if daily_blocked else "📉"
+    weekly_token = "⛔" if weekly_blocked else "📉"
+    lines.append(
+        f"{line_prefix}Daily guard {daily_token} {daily_dd:.1%}/{DAILY_MAX_DRAWDOWN:.0%} · "
+        f"Weekly guard {weekly_token} {weekly_dd:.1%}/{WEEKLY_MAX_DRAWDOWN:.0%}"
+    )
+
+    recovery_cap = float(
+        risk_multiplier_state.get("recovery_cap", RISK_MULTIPLIER_MAX) or RISK_MULTIPLIER_MAX
+    )
+    recovery_until = risk_multiplier_state.get("recovery_until")
+    recovery_note = ""
+    if isinstance(recovery_until, str):
+        try:
+            recovery_dt = datetime.fromisoformat(recovery_until)
+            now = datetime.now(timezone.utc)
+            if recovery_dt > now:
+                recovery_note = f" · recovery until {_format_timedelta_compact(recovery_dt - now)}"
+        except ValueError:
+            recovery_note = ""
+
+    last_violation = risk_multiplier_state.get("last_violation")
+    violation_note = ""
+    if isinstance(last_violation, str):
+        try:
+            violation_dt = datetime.fromisoformat(last_violation)
+            now = datetime.now(timezone.utc)
+            violation_note = f" (last guard bite {_format_timedelta_compact(now - violation_dt)} ago)"
+        except ValueError:
+            violation_note = ""
+
+    lines.append(
+        f"{line_prefix}Risk multiplier cap x{recovery_cap:.2f}/{RISK_MULTIPLIER_MAX:.2f}{recovery_note}{violation_note}"
+    )
+
+    return "\n".join(lines)
+
+
+def format_active_positions_summary(
+    positions: Iterable[Any] | None = None,
+    line_prefix: str = "• ",
+) -> str:
+    """Summarize currently open MT5 positions in a Telegram-friendly string."""
+    position_list = list(positions or mt5.positions_get() or [])
+    if not position_list:
+        return f"{line_prefix}No open positions."
+
+    total_tickets = len(position_list)
+    total_volume = sum(max(0.0, float(getattr(pos, "volume", 0.0) or 0.0)) for pos in position_list)
+    net_pnl = sum(float(getattr(pos, "profit", 0.0) or 0.0) for pos in position_list)
+
+    summary_line = summarize_open_positions(position_list)
+    lines = [
+        f"{line_prefix}Open positions: {total_tickets} tickets · {total_volume:.2f} lots · PnL {net_pnl:+.2f}",
+    ]
+    if summary_line:
+        lines.append(f"{line_prefix}Breakdown: {summary_line}")
+    return "\n".join(lines)
+
+
+def format_exposure_summary(
+    positions: Iterable[Any] | None = None,
+    line_prefix: str = "• ",
+) -> str:
+    """Summarize symbol and currency exposure against configured guardrails."""
+    position_list = list(positions or mt5.positions_get() or [])
+    if not position_list:
+        return f"{line_prefix}No open positions."
+
+    symbol_stats: dict[str, dict[str, float]] = defaultdict(lambda: {
+        "buy": 0.0,
+        "sell": 0.0,
+        "total": 0.0,
+    })
+
+    for pos in position_list:
+        symbol = str(getattr(pos, "symbol", "")) or "UNKNOWN"
+        volume = float(getattr(pos, "volume", 0.0) or 0.0)
+        if volume <= 0:
+            continue
+        bucket = symbol_stats[_normalize_symbol_key(symbol) or symbol]
+        if getattr(pos, "type", None) == mt5.POSITION_TYPE_SELL:
+            bucket["sell"] += volume
+        else:
+            bucket["buy"] += volume
+        bucket["total"] += volume
+
+    def _format_notional(value: float) -> str:
+        abs_value = abs(value)
+        if abs_value >= 1_000_000:
+            return f"{value / 1_000_000:.2f}M"
+        if abs_value >= 1_000:
+            return f"{value / 1_000:.1f}K"
+        return f"{value:.0f}"
+
+    symbol_chunks: list[str] = []
+    for key in sorted(symbol_stats.keys()):
+        stats = symbol_stats[key]
+        same_side = max(stats["buy"], stats["sell"])
+        limits = _get_symbol_exposure_limits(key)
+        max_total = float(limits.get("max_total") or 0.0)
+        max_same = float(limits.get("max_same") or 0.0)
+        total_part = f"total {stats['total']:.2f}{f'/{max_total:.2f}' if max_total else ''}"
+        same_part = f"same {same_side:.2f}{f'/{max_same:.2f}' if max_same else ''}"
+        symbol_chunks.append(f"{key}: {total_part}, {same_part}")
+
+    exposures_by_currency = _collect_currency_notional(position_list)
+    equity = get_account_equity_quiet() or get_account_balance()
+    currency_chunks: list[str] = []
+    for currency in sorted(exposures_by_currency.keys()):
+        notional = exposures_by_currency[currency]
+        multiplier = float(
+            EXPOSURE_CURRENCY_OVERRIDES.get(currency, EXPOSURE_CURRENCY_EQUITY_MULTIPLIER)
+        )
+        limit = equity * multiplier if equity else 0.0
+        if limit > 0:
+            ratio = min(9.99, max(0.0, notional / limit))
+            currency_chunks.append(
+                f"{currency} {_format_notional(notional)}/{_format_notional(limit)} ({ratio:.0%})"
+            )
+        else:
+            currency_chunks.append(f"{currency} {_format_notional(notional)}")
+
+    lines: list[str] = []
+    if symbol_chunks:
+        lines.append(f"{line_prefix}Symbols: " + " | ".join(symbol_chunks))
+    if currency_chunks:
+        lines.append(f"{line_prefix}Currencies: " + " | ".join(currency_chunks))
+
+    total_volume = sum(stats["total"] for stats in symbol_stats.values())
+    lines.append(f"{line_prefix}Total lots: {total_volume:.2f} across {len(position_list)} tickets")
+
+    return "\n".join(lines)
+
+
+def maybe_notify_margin_guard_event(
+    status: dict[str, float | bool | str | None],
+    transition: dict[str, float | str] | None,
+) -> None:
+    """Broadcast meaningful margin guard state changes via Telegram."""
+    try:
+        new_status = str(status.get("status") or "clear")
+        severity = float(status.get("severity", 0.0) or 0.0)
+        throttle = float(status.get("throttle", 1.0) or 1.0)
+        usage = float(status.get("usage", 0.0) or 0.0)
+        free_ratio = float(status.get("free_ratio", 1.0) or 1.0)
+
+        last_status = str(margin_guard_state.get("last_alert_status") or "clear")
+        last_bucket = int(float(margin_guard_state.get("last_alert_bucket", -1.0) or -1.0))
+
+        event: str | None = None
+
+        if transition:
+            transition_type = str(transition.get("type") or "")
+            if transition_type == "block":
+                event = "status:blocked"
+            elif transition_type == "resume":
+                event = "status:clear"
+            elif transition_type == "status":
+                value = str(transition.get("value") or new_status)
+                event = f"status:{value}"
+            elif transition_type == "throttle":
+                event = "throttle"
+
+        if event is None and new_status != last_status:
+            event = f"status:{new_status}"
+
+        bucket_idx = -1
+        if event in {None, "throttle"}:
+            if new_status in {"throttle", "blocked"} and severity >= MARGIN_ALERT_SEVERITY_THRESHOLD:
+                bucket_span = max(MARGIN_ALERT_REPEAT_BUCKET, 1e-6)
+                bucket_idx = int(math.floor((severity - MARGIN_ALERT_SEVERITY_THRESHOLD) / bucket_span))
+                if bucket_idx > last_bucket:
+                    event = "severity"
+            elif new_status in {"throttle", "blocked"}:
+                margin_guard_state["last_alert_bucket"] = -1.0
+            elif new_status not in {"throttle", "blocked"}:
+                margin_guard_state["last_alert_bucket"] = -1.0
+
+        if event is None:
+            return
+
+        status_value = new_status
+        if event.startswith("status:"):
+            status_value = event.split(":", 1)[1] or new_status
+            if status_value == "block":
+                status_value = "blocked"
+            if status_value == "resume":
+                status_value = "clear"
+
+        header = ""
+        usage_pct = f"{max(0.0, usage):.0%}"
+        free_pct = f"{max(0.0, free_ratio):.0%}"
+
+        if event == "severity":
+            header = (
+                f"⚠️ Margin guard severity {min(1.0, max(0.0, severity)):.0%} — usage {usage_pct}, free {free_pct}, throttle x{max(0.0, throttle):.2f}"
+            )
+        elif status_value == "blocked":
+            header = (
+                f"⛔ Margin guard BLOCKED — entries halted (usage {usage_pct}, free {free_pct})."
+            )
+        elif status_value == "throttle":
+            header = (
+                f"⚠️ Margin guard throttling exposure — usage {usage_pct}, free {free_pct}."
+            )
+        elif status_value == "clear":
+            header = "✅ Margin guard recovered — entries re-enabled."
+        else:
+            header = f"ℹ️ Margin guard status {status_value}."
+
+        details = format_margin_guard_line(status, line_prefix="• ")
+        message_lines = [header, details]
+
+        if status_value != "clear" or event == "severity":
+            message_lines.append(format_active_positions_summary(line_prefix="• "))
+
+        telegram_notify("\n".join(message_lines))
+
+        margin_guard_state["last_alert_status"] = status_value
+        margin_guard_state["last_alert_ts"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        if status_value in {"throttle", "blocked"} and bucket_idx >= 0:
+            margin_guard_state["last_alert_bucket"] = float(bucket_idx)
+        elif status_value == "clear":
+            margin_guard_state["last_alert_bucket"] = -1.0
+    except Exception as exc:
+        print(f"⚠️ Failed to dispatch margin guard alert: {exc}")
+
+
 def truncate_for_telegram(text: str, limit: int = 3600) -> str:
     if len(text) <= limit:
         return text
@@ -1149,6 +1522,9 @@ def collect_session_performance(now: Optional[datetime] = None) -> dict[str, Any
             "wins": 0,
             "losses": 0,
             "breakeven": 0,
+            "stop_loss_hits": 0,
+            "take_profit_hits": 0,
+            "manual_closes": 0,
             "win_rate": 0.0,
             "profit_factor": 0.0,
             "largest_win": 0.0,
@@ -1161,6 +1537,7 @@ def collect_session_performance(now: Optional[datetime] = None) -> dict[str, Any
             "avg_trade_duration": 0.0,
             "first_time": None,
             "last_time": None,
+            "base_equity": _session_base_equity(),
         }
 
     ordered_deals = sorted(deals, key=_safe_deal_time)
@@ -1174,6 +1551,9 @@ def collect_session_performance(now: Optional[datetime] = None) -> dict[str, Any
     wins = 0
     losses = 0
     breakeven = 0
+    stop_loss_hits = 0
+    take_profit_hits = 0
+    manual_closes = 0
     largest_win = float("-inf")
     largest_loss = float("inf")
     equity = 0.0
@@ -1207,10 +1587,12 @@ def collect_session_performance(now: Optional[datetime] = None) -> dict[str, Any
                 "realized": 0.0,
                 "first": deal_time,
                 "direction": getattr(deal, "type", 0),
+                "last_reason": None,
             },
         )
 
         entry_type = getattr(deal, "entry", DEAL_ENTRY_OUT)
+        reason = getattr(deal, "reason", None)
         if entry_type == DEAL_ENTRY_IN:
             container["entry_volume"] += volume
             container.setdefault("first", deal_time)
@@ -1222,6 +1604,7 @@ def collect_session_performance(now: Optional[datetime] = None) -> dict[str, Any
         container["exit_volume"] += volume
         container["realized"] += profit
         container["last"] = deal_time
+        container["last_reason"] = reason
 
         net_profit += profit
         if profit >= 0:
@@ -1266,9 +1649,18 @@ def collect_session_performance(now: Optional[datetime] = None) -> dict[str, Any
                 if isinstance(opened_at, datetime) and isinstance(closed_at, datetime):
                     trade_durations.append(max(0.0, (closed_at - opened_at).total_seconds() / 60.0))
 
+                final_reason = container.get("last_reason", reason)
+                if final_reason == DEAL_REASON_SL:
+                    stop_loss_hits += 1
+                elif final_reason == DEAL_REASON_TP:
+                    take_profit_hits += 1
+                elif final_reason in MANUAL_CLOSE_REASONS:
+                    manual_closes += 1
+
                 container["entry_volume"] = 0.0
                 container["exit_volume"] = 0.0
                 container["realized"] = 0.0
+                container["last_reason"] = None
 
     win_rate = (wins / trades) if trades else 0.0
     profit_factor = (gross_profit / abs(gross_loss)) if gross_loss < -1e-6 else (gross_profit if gross_profit > 0 else 0.0)
@@ -1296,6 +1688,9 @@ def collect_session_performance(now: Optional[datetime] = None) -> dict[str, Any
         "wins": wins,
         "losses": losses,
         "breakeven": breakeven,
+        "stop_loss_hits": stop_loss_hits,
+        "take_profit_hits": take_profit_hits,
+        "manual_closes": manual_closes,
         "win_rate": win_rate,
         "profit_factor": profit_factor,
         "largest_win": largest_win,
@@ -1308,6 +1703,7 @@ def collect_session_performance(now: Optional[datetime] = None) -> dict[str, Any
         "avg_trade_duration": avg_trade_duration,
         "first_time": first_time,
         "last_time": last_time,
+        "base_equity": base_equity,
     }
 
 
@@ -1333,61 +1729,18 @@ def compose_performance_snapshot() -> str:
     if account_info:
         equity = float(getattr(account_info, "equity", 0.0) or 0.0)
         balance = float(getattr(account_info, "balance", 0.0) or 0.0)
-        margin = float(getattr(account_info, "margin", 0.0) or 0.0)
-        margin_free = float(getattr(account_info, "margin_free", 0.0) or 0.0)
         profit = float(getattr(account_info, "profit", 0.0) or 0.0)
-        margin_usage = (margin / equity) if equity else 0.0
-        free_ratio = (margin_free / equity) if equity else 0.0
-
         lines.append(
             f"• Balance {balance:.2f} | Equity {equity:.2f} | Open PnL {profit:+.2f}"
         )
-        lines.append(
-            f"• Margin used {margin:.2f} ({margin_usage:.1%}) | Free {margin_free:.2f} ({free_ratio:.1%})"
-        )
-
-        if run_baseline_snapshot.get("equity"):
-            baseline_equity = float(run_baseline_snapshot.get("equity") or 0.0)
-            equity_delta = equity - baseline_equity
-            equity_pct = (equity_delta / baseline_equity) if baseline_equity else 0.0
-            lines.append(f"• Session Δ equity {equity_delta:+.2f} ({equity_pct:+.2%})")
     else:
         lines.append("• Account info unavailable (mt5.account_info() returned None)")
-
-    soft_status = soft_guard_state.get("status", "clear")
-    soft_dd = float(soft_guard_state.get("drawdown", 0.0) or 0.0)
-    soft_throttle = float(soft_guard_state.get("throttle", 1.0) or 1.0)
-    lines.append(
-        f"• Soft guard: {soft_status} (drawdown {soft_dd:.1%}, throttle {soft_throttle:.0%})"
-    )
-
-    margin_status = margin_guard_state.get("status", "clear")
-    margin_usage = float(margin_guard_state.get("usage", 0.0) or 0.0)
-    margin_free_ratio = float(margin_guard_state.get("free_ratio", 1.0) or 1.0)
-    lines.append(
-        f"• Margin guard: {margin_status} (usage {margin_usage:.1%}, free {margin_free_ratio:.1%})"
-    )
-
-    if RISK_GUARD_ENABLED and risk_guard_state:
-        daily_dd = float(risk_guard_state.get("daily_drawdown", 0.0) or 0.0)
-        weekly_dd = float(risk_guard_state.get("weekly_drawdown", 0.0) or 0.0)
-        lines.append(
-            f"• Risk guard: daily {daily_dd:.1%} | weekly {weekly_dd:.1%}"
-        )
-    elif not RISK_GUARD_ENABLED:
-        lines.append("• Risk guard: disabled")
-
-    positions = mt5.positions_get() or []
-    if positions:
-        position_summary = truncate_for_telegram(summarize_open_positions(positions), 900)
-        lines.append(f"• Open positions ({len(positions)}): {position_summary}")
-    else:
-        lines.append("• Open positions: none")
 
     performance = collect_session_performance()
     perf_trades = int(performance.get("trades", 0) or 0)
     perf_partials = int(performance.get("partial_events", 0) or 0)
     perf_net = float(performance.get("net_profit", 0.0) or 0.0)
+
     if perf_trades or perf_partials or abs(perf_net) > 0.01:
         gross_profit = float(performance.get("gross_profit", 0.0) or 0.0)
         gross_loss = float(performance.get("gross_loss", 0.0) or 0.0)
@@ -1400,40 +1753,36 @@ def compose_performance_snapshot() -> str:
         else:
             profit_factor_display = f"{float(profit_factor or 0.0):.2f}"
 
-        largest_win = float(performance.get("largest_win", 0.0) or 0.0)
-        largest_loss = float(performance.get("largest_loss", 0.0) or 0.0)
+        sharpe = float(performance.get("sharpe", 0.0) or 0.0)
         max_dd = float(performance.get("max_drawdown", 0.0) or 0.0)
         equity_high = float(performance.get("equity_high", 0.0) or 0.0)
         equity_low = float(performance.get("equity_low", 0.0) or 0.0)
-        sharpe = float(performance.get("sharpe", 0.0) or 0.0)
-        duration_minutes = float(performance.get("duration_minutes", 0.0) or 0.0)
-        avg_trade_duration = float(performance.get("avg_trade_duration", 0.0) or 0.0)
-        duration_text = _format_timedelta_compact(timedelta(minutes=duration_minutes)) if duration_minutes else "n/a"
-        avg_hold_text = _format_timedelta_compact(timedelta(minutes=avg_trade_duration)) if avg_trade_duration else "n/a"
+        base_equity = float(performance.get("base_equity", 0.0) or 0.0)
+        equity_peak = base_equity + equity_high
+        equity_trough = base_equity + equity_low
+        stop_loss_hits = int(performance.get("stop_loss_hits", 0) or 0)
+        take_profit_hits = int(performance.get("take_profit_hits", 0) or 0)
+        breakeven_hits = int(performance.get("breakeven", 0) or 0)
+        manual_closes = int(performance.get("manual_closes", 0) or 0)
 
         lines.append(
             f"• Closed PnL {perf_net:+.2f} (gross +{gross_profit:.2f} / -{abs(gross_loss):.2f})"
         )
-        wins = int(performance.get("wins", 0) or 0)
-        losses = int(performance.get("losses", 0) or 0)
-        breakeven = int(performance.get("breakeven", 0) or 0)
         lines.append(
-            f"• Trades {perf_trades} — wins {wins}, losses {losses}, breakeven {breakeven} (win rate {win_rate:.1%})"
+            f"• Equity peak {equity_peak:.2f} | Equity low {equity_trough:.2f} | Max drawdown {max_dd:.2f}"
         )
         lines.append(
-            f"• Profit factor {profit_factor_display} | Largest win {largest_win:+.2f} | Largest loss {largest_loss:+.2f}"
+            f"• Stops — TP {take_profit_hits}, SL {stop_loss_hits}, BE {breakeven_hits}"
         )
+
+        partial_realized = float(performance.get("partial_realized", 0.0) or 0.0)
         lines.append(
-            f"• Max closed drawdown {max_dd:.2f} | Equity range +{equity_high:.2f} / {equity_low:.2f} | Sharpe {sharpe:.2f}"
+            f"• Partials {perf_partials} ({partial_realized:+.2f}) | Manual closes {manual_closes}"
         )
+
         lines.append(
-            f"• Stats window {duration_text} | Avg hold {avg_hold_text}"
+            f"• Win rate {win_rate:.1%} | Profit factor {profit_factor_display} | Sharpe {sharpe:.2f}"
         )
-        if perf_partials:
-            partial_realized = float(performance.get("partial_realized", 0.0) or 0.0)
-            lines.append(
-                f"• Partial exits {perf_partials} totalling {partial_realized:+.2f}"
-            )
 
         first_time = performance.get("first_time")
         last_time = performance.get("last_time")
@@ -1441,7 +1790,9 @@ def compose_performance_snapshot() -> str:
             window_label = (
                 f"{first_time.strftime('%Y-%m-%d %H:%M')} → {last_time.strftime('%H:%M')} UTC"
             )
-            lines.append(f"• Window: {window_label}")
+            lines.append(f"• Closed-trade window {window_label}")
+    else:
+        lines.append("• No closed trades recorded in this session window yet")
 
     lines.append(format_risk_profile_summary())
 
@@ -1488,15 +1839,64 @@ def apply_risk_preset(preset_name: str) -> tuple[bool, str]:
 def format_telegram_help() -> str:
     return (
         "🤖 Ultima remote commands:\n"
+        "/start — welcome message and resume trading if safe\n"
         "/pause [reason] — pause trading\n"
         "/resume — resume trading\n"
         "/performance — current account + guard snapshot\n"
+        "/status — quick guard + position overview\n"
+        "/guards — detailed guard state\n"
+        "/risklist — available risk presets\n"
         "/risk <low|medium|high|status> — adjust risk or show current preset\n"
+        "/exposure — symbol + currency exposure view\n"
+        "/flatten — close all open positions\n"
+        "/scaleout [fraction] — trim every open ticket (default 0.5)\n"
         "/kill [reason] — arm emergency stop (requires confirmation)\n"
         "/confirmkill — confirm kill within 45s to halt trading\n"
         "/cancelkill — cancel a pending kill request\n"
+        "/startbot — clear kill state and restart trading\n"
         "/help — show this overview"
     )
+
+
+def compose_start_response(start_message: str, *, include_help_hint: bool = True) -> str:
+    """Build a concise status snapshot suitable for replying to /start."""
+
+    with control_state_lock:
+        paused = bool(control_state.get("paused", False))
+        pause_reason = str(control_state.get("pause_reason") or "")
+        paused_since = control_state.get("paused_since")
+
+    if paused:
+        duration_text = ""
+        if isinstance(paused_since, datetime):
+            duration = datetime.now(timezone.utc) - paused_since
+            duration_text = f" for {_format_timedelta_compact(duration)}"
+        reason_text = f" — {pause_reason}" if pause_reason else ""
+        run_state_line = f"• Run state: Paused{duration_text}{reason_text}"
+    else:
+        run_state_line = "• Run state: Live"
+
+    account_info = mt5.account_info()
+    if account_info:
+        equity = float(getattr(account_info, "equity", 0.0) or 0.0)
+        balance = float(getattr(account_info, "balance", 0.0) or 0.0)
+        profit = float(getattr(account_info, "profit", 0.0) or 0.0)
+        account_line = f"• Balance {balance:.2f} | Equity {equity:.2f} | Open PnL {profit:+.2f}"
+    else:
+        account_line = "• Account info unavailable (mt5.account_info() returned None)"
+
+    detail_lines: list[str] = [run_state_line, account_line]
+    detail_lines.extend(format_guard_status_summary(line_prefix="• ").splitlines())
+    detail_lines.extend(format_active_positions_summary(line_prefix="• ").splitlines())
+    if include_help_hint:
+        detail_lines.append("• Commands: /help for the full list of remote controls.")
+
+    detail_block = "\n".join(detail_lines)
+    if detail_block:
+        composed = f"{start_message}\n\n🤖 Ultima live status:\n{detail_block}"
+    else:
+        composed = start_message
+    return truncate_for_telegram(composed)
 
 
 def process_telegram_commands(controller: TelegramController | None) -> bool:
@@ -1512,9 +1912,33 @@ def process_telegram_commands(controller: TelegramController | None) -> bool:
         chat_id = int(command.get("chat_id") or 0)
         user_id = command.get("user_id")
         args = command.get("args") or []
+        message_ts = command.get("timestamp") or command.get("date")
+
+        if message_ts is not None:
+            try:
+                message_dt = datetime.fromtimestamp(int(message_ts), tz=timezone.utc)
+            except (TypeError, ValueError, OSError, OverflowError):
+                message_dt = None
+            if message_dt is not None:
+                cutoff = SCRIPT_START_TIME - timedelta(seconds=TELEGRAM_REPLAY_GRACE_SECONDS)
+                if message_dt < cutoff:
+                    print(
+                        f"⏩ Skipping stale Telegram command /{name} from {message_dt.isoformat()} (before current session)."
+                    )
+                    TELEGRAM_COMMAND_QUEUE.task_done()
+                    continue
 
         _expire_kill_request_if_needed()
         print(f"📨 Telegram command /{name} from {user_id}")
+
+        if chat_id:
+            register_telegram_chat(chat_id)
+        if user_id is not None:
+            with control_state_lock:
+                control_state["last_user_id"] = user_id
+                control_state["last_source"] = f"telegram:{user_id}"
+
+        reply: str | None = None
 
         if name == "pause":
             reason = " ".join(args).strip()
@@ -1527,36 +1951,132 @@ def process_telegram_commands(controller: TelegramController | None) -> bool:
             message = f"{prefix} Trading paused{duration_note}."
             if reason:
                 message += f" Reason: {reason}"
-            if controller and chat_id:
-                controller.send_message(chat_id, message)
+            reply = message
 
         elif name == "resume":
             changed, _ = set_trading_paused(False, source="telegram", user_id=user_id)
             prefix = "▶️" if changed else "ℹ️"
             message = f"{prefix} Trading resumed." if changed else "ℹ️ Trading was already running."
-            if controller and chat_id:
-                controller.send_message(chat_id, message)
+            reply = message
 
         elif name == "performance":
             snapshot = compose_performance_snapshot()
-            if controller and chat_id:
-                controller.send_message(chat_id, snapshot)
+            reply = snapshot
+
+        elif name == "status":
+            lines = [
+                "📊 Status snapshot:",
+                format_guard_status_summary(line_prefix="• "),
+                format_active_positions_summary(line_prefix="• "),
+            ]
+            reply = truncate_for_telegram("\n".join(lines))
+
+        elif name == "guards":
+            reply = truncate_for_telegram(
+                "🛡️ Guard status:\n" + format_guard_status_summary(line_prefix="• ")
+            )
+
+        elif name == "risklist":
+            lines = ["📐 Risk presets:"]
+            for key, preset in sorted(RISK_PRESETS.items()):
+                settings: dict[str, float] = preset.get("settings", {})  # type: ignore[arg-type]
+                risk = float(settings.get("ACCOUNT_RISK_PER_TRADE", ACCOUNT_RISK_PER_TRADE) or 0.0)
+                cap = float(settings.get("RISK_MULTIPLIER_MAX", RISK_MULTIPLIER_MAX) or RISK_MULTIPLIER_MAX)
+                label = preset.get("label", "")
+                description = preset.get("description", "")
+                lines.append(
+                    f"• {key.upper()}: {label} — risk/trade {risk:.1%}, multiplier cap x{cap:.2f}. {description}"
+                )
+            reply = truncate_for_telegram("\n".join(lines))
 
         elif name == "risk":
             if not args or args[0].lower() in {"status", "show"}:
                 summary = "📐 Current risk settings:\n" + format_risk_profile_summary(line_prefix="• ")
-                if controller and chat_id:
-                    controller.send_message(chat_id, summary)
+                reply = summary
             else:
                 mode = args[0].lower()
                 changed, summary = apply_risk_preset(mode)
                 prefix = "✅" if changed else "ℹ️"
-                if controller and chat_id:
-                    controller.send_message(chat_id, f"{prefix} {summary}")
+                reply = f"{prefix} {summary}"
+
+        elif name == "exposure":
+            lines = [
+                "💼 Exposure summary:",
+                format_exposure_summary(line_prefix="• "),
+            ]
+            if MARGIN_GUARD_ENABLED:
+                lines.append(format_margin_guard_line(line_prefix="• "))
+            reply = truncate_for_telegram("\n".join(lines))
+
+        elif name == "flatten":
+            if not ensure_connection_ready():
+                reply = "⚠️ Unable to reach MT5 terminal; flatten aborted."
+            else:
+                positions = list(mt5.positions_get() or [])
+                volume_positions = [p for p in positions if float(getattr(p, "volume", 0.0) or 0.0) > 0]
+                if not volume_positions:
+                    reply = "ℹ️ No open positions to flatten."
+                else:
+                    symbols = sorted({str(getattr(p, "symbol", "")) or "UNKNOWN" for p in volume_positions})
+                    closed = 0
+                    for symbol in symbols:
+                        closed += close_symbol_positions(symbol, reason="Telegram flatten")
+                    if closed > 0:
+                        post_positions = mt5.positions_get()
+                        status_line = format_active_positions_summary(post_positions, line_prefix="• ")
+                        reply = (
+                            f"🧹 Flattened {closed} ticket{'s' if closed != 1 else ''} across {len(symbols)} symbol"
+                            f"{'s' if len(symbols) != 1 else ''}.\n{status_line}"
+                        )
+                    else:
+                        reply = "⚠️ Flatten request executed but no tickets were closed."
+
+        elif name == "scaleout":
+            if not ensure_connection_ready():
+                reply = "⚠️ Unable to reach MT5 terminal; scale-out aborted."
+            else:
+                positions = list(mt5.positions_get() or [])
+                volume_positions = [p for p in positions if float(getattr(p, "volume", 0.0) or 0.0) > 0]
+                if not volume_positions:
+                    reply = "ℹ️ No open positions to scale out."
+                else:
+                    fraction = 0.5
+                    if args:
+                        try:
+                            parsed = float(args[0])
+                            if math.isfinite(parsed):
+                                fraction = max(0.1, min(0.9, parsed))
+                        except ValueError:
+                            pass
+
+                    total_closed = 0.0
+                    successes = 0
+                    failures = 0
+                    reason = f"Telegram scale-out {fraction:.0%}"
+                    for pos in volume_positions:
+                        ticket = int(getattr(pos, "ticket", 0))
+                        volume = float(getattr(pos, "volume", 0.0) or 0.0)
+                        if ticket <= 0 or volume <= 0:
+                            continue
+                        close_amount = max(MIN_LOT_SIZE, min(volume, volume * fraction))
+                        if close_partial_position(ticket, close_amount, reason=reason):
+                            successes += 1
+                            total_closed += close_amount
+                        else:
+                            failures += 1
+                    if successes:
+                        post_positions = mt5.positions_get()
+                        status_line = format_active_positions_summary(post_positions, line_prefix="• ")
+                        extra = f"\n• {failures} ticket{'s' if failures != 1 else ''} failed to trim." if failures else ""
+                        reply = (
+                            f"✂️ Scaled out {total_closed:.2f} lots across {successes} ticket{'s' if successes != 1 else ''}"
+                            f" (~{fraction:.0%} per ticket).\n{status_line}{extra}"
+                        )
+                    else:
+                        reply = "⚠️ Scale-out request failed to trim any tickets."
 
         elif name == "help":
-            if controller and chat_id:
-                controller.send_message(chat_id, format_telegram_help())
+            reply = format_telegram_help()
 
         elif name == "kill":
             reason = " ".join(args).strip()
@@ -1567,43 +2087,58 @@ def process_telegram_commands(controller: TelegramController | None) -> bool:
                 countdown = _format_timedelta_compact(timedelta(seconds=remaining))
             else:
                 countdown = _format_timedelta_compact(timedelta(seconds=KILL_CONFIRM_WINDOW_SECONDS))
-            if controller and chat_id:
-                if state.get("engaged"):
-                    controller.send_message(chat_id, "🛑 Kill switch already engaged — trading halted.")
-                else:
-                    prefix = "🆘" if created else "ℹ️"
-                    reason_text = f" Reason: {reason}" if reason else ""
-                    controller.send_message(
-                        chat_id,
-                        f"{prefix} Kill switch armed.{reason_text} Confirm within {countdown} using /confirmkill, or /cancelkill to abort.",
-                    )
+            if state.get("engaged"):
+                reply = "🛑 Kill switch already engaged — trading halted."
+            else:
+                prefix = "🆘" if created else "ℹ️"
+                reason_text = f" Reason: {reason}" if reason else ""
+                reply = (
+                    f"{prefix} Kill switch armed.{reason_text} Confirm within {countdown} using /confirmkill, /cancelkill to abort, then /startbot when ready to resume."
+                )
 
         elif name == "confirmkill":
             success, state = confirm_kill_switch(user_id)
-            if controller and chat_id:
-                if success:
-                    controller.send_message(
-                        chat_id,
-                        "🛑 Kill switch engaged. Trading paused immediately; the live loop will shut down after cleanup.",
-                    )
+            if success:
+                reply = (
+                    "🛑 Kill switch engaged. Trading halted; send /startbot when it’s safe to resume."
+                )
+            else:
+                if state.get("pending"):
+                    reply = "⚠️ Kill request pending but confirmation expired. Issue /kill again."
                 else:
-                    if state.get("pending"):
-                        controller.send_message(chat_id, "⚠️ Kill request pending but confirmation expired. Issue /kill again.")
-                    else:
-                        controller.send_message(chat_id, "ℹ️ No kill request awaiting confirmation.")
+                    reply = "ℹ️ No kill request awaiting confirmation."
 
         elif name == "cancelkill":
             cancel_kill_switch()
-            if controller and chat_id:
-                controller.send_message(chat_id, "✅ Pending kill request cancelled.")
+            reply = "✅ Pending kill request cancelled."
+
+        elif name in {"startbot", "start"}:
+            resumed, state = resume_kill_switch(user_id)
+            if resumed:
+                base_reply = "▶️ Kill switch cleared. Trading loop restarting."
+            else:
+                if state.get("pending"):
+                    base_reply = "⚠️ Kill request pending confirmation. Use /confirmkill or /cancelkill first."
+                else:
+                    changed, _ = set_trading_paused(
+                        False,
+                        reason="Start command",
+                        source="telegram",
+                        user_id=user_id,
+                    )
+                    base_reply = "▶️ Trading resumed." if changed else "ℹ️ Trading already running."
+
+            if name == "start" and not state.get("pending"):
+                reply = compose_start_response(base_reply)
+            else:
+                reply = base_reply
 
         else:
             unknown = command.get("command") or name
-            if controller and chat_id:
-                controller.send_message(
-                    chat_id,
-                    f"❓ Unknown command '/{unknown}'. Try /help for available commands.",
-                )
+            reply = f"❓ Unknown command '/{unknown}'. Try /help for available commands."
+
+        if reply and controller and chat_id:
+            controller.send_message(chat_id, truncate_for_telegram(reply))
 
         TELEGRAM_COMMAND_QUEUE.task_done()
 
@@ -1643,7 +2178,43 @@ def wait_if_paused(controller: TelegramController | None) -> bool:
         time.sleep(max(TELEGRAM_POLL_SECONDS, TELEGRAM_PAUSE_SLEEP_SECONDS))
 
 
+def wait_for_kill_clear(controller: TelegramController | None) -> None:
+    notified = False
+    while True:
+        _expire_kill_request_if_needed()
+        process_telegram_commands(controller)
+        suppress_resume_notify = False
+        with kill_state_lock:
+            engaged = bool(kill_switch_state.get("engaged"))
+            suppress_resume_notify = bool(kill_switch_state.get("suppress_resume_notify", False))
+            if not engaged and suppress_resume_notify:
+                kill_switch_state["suppress_resume_notify"] = False
+        if not engaged:
+            if notified:
+                print("▶️ Kill switch cleared — restarting trading loop.")
+                if not suppress_resume_notify:
+                    telegram_notify("▶️ Kill switch cleared. Trading loop restarting.")
+            return
+        if not notified:
+            print("🔒 Kill switch engaged — trading halted. Awaiting /startbot to resume.")
+            telegram_notify("🛑 Kill switch engaged. Send /startbot when ready to restart trading.")
+            notified = True
+        time.sleep(max(TELEGRAM_POLL_SECONDS, TELEGRAM_PAUSE_SLEEP_SECONDS))
+
+
+def enforce_kill_switch_safe(controller: TelegramController | None, scan_counter: int) -> bool:
+    try:
+        enforce_kill_switch()
+        return True
+    except EmergencyStop:
+        log_manual_stop_summary(scan_counter, trigger="Kill switch engaged")
+        wait_for_kill_clear(controller)
+        return False
+
+
 def apply_risk_guard_to_multiplier(multiplier: float) -> float:
+    now = datetime.now(timezone.utc)
+
     guard_factor = risk_guard_drawdown_factor() if RISK_GUARD_ENABLED else 1.0
     soft_factor = float(soft_guard_state.get("throttle", 1.0) or 1.0) if SOFT_GUARD_ENABLED else 1.0
     margin_factor = float(margin_guard_state.get("throttle", 1.0) or 1.0) if MARGIN_GUARD_ENABLED else 1.0
@@ -1660,7 +2231,41 @@ def apply_risk_guard_to_multiplier(multiplier: float) -> float:
     if MARGIN_GUARD_ENABLED and margin_factor < 1.0:
         min_bound = min(min_bound, max(MARGIN_GUARD_MIN_THROTTLE, margin_factor))
 
-    adjusted = max(min_bound, min(RISK_MULTIPLIER_MAX, adjusted))
+    recovery_until = None
+    try:
+        recovery_until = risk_multiplier_state.get("recovery_until")
+        if isinstance(recovery_until, str):
+            recovery_until = datetime.fromisoformat(recovery_until)
+    except Exception:
+        recovery_until = None
+
+    is_recovering = bool(recovery_until and isinstance(recovery_until, datetime) and now <= recovery_until)
+    if guard_factor < 1.0 or soft_factor < 1.0 or margin_factor < 1.0:
+        risk_multiplier_state["last_violation"] = now.isoformat()
+        recovery_until = now + RISK_MULTIPLIER_RECOVERY_WINDOW
+        risk_multiplier_state["recovery_until"] = recovery_until.isoformat()
+        risk_multiplier_state["recovery_cap"] = RISK_MULTIPLIER_RELIEF_MAX
+        is_recovering = True
+
+    if not is_recovering:
+        last_violation = risk_multiplier_state.get("last_violation")
+        if isinstance(last_violation, str):
+            try:
+                last_violation_dt = datetime.fromisoformat(last_violation)
+                if now - last_violation_dt > RISK_MULTIPLIER_RECOVERY_WINDOW:
+                    risk_multiplier_state["recovery_cap"] = RISK_MULTIPLIER_MAX
+                    risk_multiplier_state["recovery_until"] = None
+            except ValueError:
+                risk_multiplier_state["recovery_cap"] = RISK_MULTIPLIER_MAX
+                risk_multiplier_state["recovery_until"] = None
+
+    recovery_cap = float(risk_multiplier_state.get("recovery_cap", RISK_MULTIPLIER_MAX) or RISK_MULTIPLIER_MAX)
+
+    target = min(RISK_MULTIPLIER_MAX, recovery_cap)
+    if is_recovering and multiplier <= RISK_MULTIPLIER_RECOVERY_TARGET:
+        target = min(target, RISK_MULTIPLIER_RECOVERY_TARGET)
+
+    adjusted = max(min_bound, min(target, adjusted))
     return round(adjusted, 2)
 
 
@@ -1768,7 +2373,7 @@ COUNTER_SIGNAL_EXIT_MIN_NET_LOSS = -1.0  # Require at least -$1 unrealized on th
 COUNTER_SIGNAL_EXIT_COMMENT = "CounterExit"
 
 # Enhanced risk management
-ACCOUNT_RISK_PER_TRADE = 0.12  # Reduced base risk to balance fast growth with capital protection
+ACCOUNT_RISK_PER_TRADE = 0.06  # Balanced growth profile default risk per trade
 MIN_LOT_SIZE = 0.01  # Minimum position size
 MAX_LOT_SIZE = 5.0   # Maximum position size cap
 
@@ -1799,7 +2404,10 @@ CRYPTO_WEEKEND_SESSION_NAME = "Crypto Weekend"
 
 # Dynamic risk multiplier bounds
 RISK_MULTIPLIER_MIN = 1.0
-RISK_MULTIPLIER_MAX = 3.5
+RISK_MULTIPLIER_MAX = 2.8
+RISK_MULTIPLIER_RELIEF_MAX = 2.2       # Ceiling while recovering from drawdown/guard throttles
+RISK_MULTIPLIER_RECOVERY_WINDOW = timedelta(hours=6)
+RISK_MULTIPLIER_RECOVERY_TARGET = 1.15
 
 # Liquidity-aware spread gating (spread-to-ATR heuristics)
 LIQUIDITY_SPREAD_ATR_BONUS = 0.18      # Tight spreads (<18% of ATR) earn a risk boost
@@ -1825,26 +2433,56 @@ SCAN_INTERVAL_SECONDS = 60        # Time between scan loops (seconds)
 
 # Soft drawdown guard (still aggressive but avoids death spirals)
 SOFT_GUARD_ENABLED = True
-SOFT_GUARD_LIMIT = 0.33           # Block new trades if unrealized DD exceeds 33% of balance
-SOFT_GUARD_ALERT = 0.27           # Strongly throttle between 27%-33%
-SOFT_GUARD_CAUTION = 0.20         # Begin soft throttling after 20%
-SOFT_GUARD_RESUME = 0.16          # Resume trading once DD recovers below 16%
-SOFT_GUARD_MIN_THROTTLE = 0.40    # Never risk below 40% sizing unless fully blocked
+SOFT_GUARD_LIMIT = 0.28           # Block new trades if unrealized DD exceeds 28% of balance
+SOFT_GUARD_ALERT = 0.23           # Strongly throttle between 23%-28%
+SOFT_GUARD_CAUTION = 0.16         # Begin soft throttling after 16%
+SOFT_GUARD_RESUME = 0.12          # Resume trading once DD recovers below 12%
+SOFT_GUARD_MIN_THROTTLE = 0.45    # Never risk below 45% sizing unless fully blocked
 
 # Margin usage guard (prevent over-leveraging during stack builds)
 MARGIN_GUARD_ENABLED = True
-MARGIN_USAGE_THROTTLE = 0.60      # Begin throttling once >60% of equity is tied up in margin
-MARGIN_USAGE_BLOCK = 0.78         # Block new entries once margin usage crosses 78%
-MARGIN_FREE_RATIO_THROTTLE = 0.35 # Throttle if free margin drops below 35% of equity
-MARGIN_FREE_RATIO_BLOCK = 0.18    # Block new entries if free margin <18% of equity
-MARGIN_GUARD_MIN_THROTTLE = 0.35  # Lowest risk factor applied before blocking
-MARGIN_USAGE_RESUME = 0.66        # Usage must fall below 66% before resuming after a block
-MARGIN_FREE_RATIO_RESUME = 0.30   # Free margin must recover above 30% of equity to unblock
-MARGIN_USAGE_THROTTLE_RESUME = 0.55  # Usage must stay below 55% before clearing throttle state
-MARGIN_FREE_RATIO_THROTTLE_RESUME = 0.40  # Free margin resume threshold for throttle recovery
+MARGIN_USAGE_THROTTLE = 0.52      # Begin throttling once >52% of equity is tied up in margin
+MARGIN_USAGE_BLOCK = 0.70         # Block new entries once margin usage crosses 70%
+MARGIN_FREE_RATIO_THROTTLE = 0.40 # Throttle if free margin drops below 40% of equity
+MARGIN_FREE_RATIO_BLOCK = 0.24    # Block new entries if free margin <24% of equity
+MARGIN_GUARD_MIN_THROTTLE = 0.40  # Lowest risk factor applied before blocking
+MARGIN_USAGE_RESUME = 0.60        # Usage must fall below 60% before resuming after a block
+MARGIN_FREE_RATIO_RESUME = 0.36   # Free margin must recover above 36% of equity to unblock
+MARGIN_USAGE_THROTTLE_RESUME = 0.48  # Usage must stay below 48% before clearing throttle state
+MARGIN_FREE_RATIO_THROTTLE_RESUME = 0.44  # Free margin resume threshold for throttle recovery
 MARGIN_GUARD_SEVERITY_EXPONENT = 1.35  # Curve severity to bite harder as usage worsens
 MARGIN_ENTRY_GUARD_MIN_FACTOR = 0.55  # Do not open fresh exposure when guard factor falls below 55%
 PYRAMID_GUARD_MIN_FACTOR = 0.65       # Require at least 65% guard factor before stacking positions
+MARGIN_ALERT_SEVERITY_THRESHOLD = 0.55  # Alert Telegram once severity crosses 55%
+MARGIN_ALERT_REPEAT_BUCKET = 0.10       # Re-alert every +10% severity when throttled
+
+# Exposure caps (per-symbol lots + per-currency notional)
+EXPOSURE_CAPS_ENABLED = True
+EXPOSURE_SYMBOL_DEFAULT_MAX_TOTAL = 1.8        # Hard ceiling of aggregate lots per symbol
+EXPOSURE_SYMBOL_DEFAULT_MAX_SAME = 1.2         # Max same-direction lots before forcing partials
+EXPOSURE_SYMBOL_OVERRIDES: dict[str, dict[str, float]] = {
+    "XAUUSD": {"max_total": 1.2, "max_same": 1.0},
+    "GBPJPY": {"max_total": 1.3, "max_same": 0.9},
+    "BTCUSD": {"max_total": 0.6, "max_same": 0.4},
+}
+EXPOSURE_SYMBOL_MIN_REMAINDER = 0.02           # Require at least this lot space to open another trade
+EXPOSURE_CURRENCY_EQUITY_MULTIPLIER = 15.0     # Allow up to 15× equity notional per currency
+EXPOSURE_CURRENCY_OVERRIDES: dict[str, float] = {
+    "JPY": 12.0,
+    "XAU": 8.0,
+    "BTC": 4.0,
+}
+EXPOSURE_CURRENCY_WARN_RATIO = 0.85            # Emit warning once >85% of a currency band is consumed
+
+# Automated margin unwind safeguards
+MARGIN_UNWIND_ENABLED = True
+MARGIN_UNWIND_TRIGGER_THROTTLE = 0.72       # Start shedding exposure once guard throttles below 72%
+MARGIN_UNWIND_TRIGGER_SEVERITY = 0.45       # Or when severity climbs above 45%
+MARGIN_UNWIND_BLOCK_REDUCTION = 0.55        # Close at least 55% of lots when margin guard blocks entries
+MARGIN_UNWIND_MIN_REDUCTION = 0.18          # Minimum fraction of lots to trim during a throttle event
+MARGIN_UNWIND_MAX_REDUCTION = 0.70          # Never close more than 70% in one pass (avoid full flatten)
+MARGIN_UNWIND_MIN_VOLUME = MIN_LOT_SIZE     # Guarantee we trim at least the broker minimum lot size
+MARGIN_UNWIND_COOLDOWN_SECONDS = 120        # Wait two minutes before attempting another unwind pass
 
 # Order retry tuning for margin shortfalls
 ORDER_NO_MONEY_RETRY_ENABLED = True
@@ -1903,66 +2541,78 @@ RISK_PRESETS: dict[str, dict[str, object]] = {
         "label": "Capital preservation",
         "description": "Dial risk back sharply to ride out drawdowns or when trading unattended.",
         "settings": {
-            "ACCOUNT_RISK_PER_TRADE": 0.08,
-            "RISK_MULTIPLIER_MAX": 2.6,
-            "SOFT_GUARD_LIMIT": 0.28,
-            "SOFT_GUARD_ALERT": 0.24,
-            "SOFT_GUARD_CAUTION": 0.17,
-            "SOFT_GUARD_RESUME": 0.14,
-            "MARGIN_USAGE_THROTTLE": 0.52,
-            "MARGIN_USAGE_BLOCK": 0.72,
-            "MARGIN_USAGE_RESUME": 0.60,
-            "MARGIN_USAGE_THROTTLE_RESUME": 0.48,
-            "MARGIN_FREE_RATIO_THROTTLE": 0.40,
-            "MARGIN_FREE_RATIO_BLOCK": 0.24,
-            "MARGIN_FREE_RATIO_RESUME": 0.34,
-            "MARGIN_FREE_RATIO_THROTTLE_RESUME": 0.45,
+            "ACCOUNT_RISK_PER_TRADE": 0.04,
+            "RISK_MULTIPLIER_MAX": 2.0,
+            "SOFT_GUARD_LIMIT": 0.22,
+            "SOFT_GUARD_ALERT": 0.18,
+            "SOFT_GUARD_CAUTION": 0.12,
+            "SOFT_GUARD_RESUME": 0.08,
+            "SOFT_GUARD_MIN_THROTTLE": 0.50,
+            "MARGIN_USAGE_THROTTLE": 0.45,
+            "MARGIN_USAGE_BLOCK": 0.62,
+            "MARGIN_USAGE_RESUME": 0.54,
+            "MARGIN_USAGE_THROTTLE_RESUME": 0.40,
+            "MARGIN_FREE_RATIO_THROTTLE": 0.48,
+            "MARGIN_FREE_RATIO_BLOCK": 0.32,
+            "MARGIN_FREE_RATIO_RESUME": 0.42,
+            "MARGIN_FREE_RATIO_THROTTLE_RESUME": 0.50,
+            "MARGIN_GUARD_MIN_THROTTLE": 0.45,
         },
     },
     "medium": {
         "label": "Balanced growth",
         "description": "Default profile tuned for live trading with strong guardrails.",
         "settings": {
-            "ACCOUNT_RISK_PER_TRADE": 0.12,
-            "RISK_MULTIPLIER_MAX": 3.5,
-            "SOFT_GUARD_LIMIT": 0.33,
-            "SOFT_GUARD_ALERT": 0.27,
-            "SOFT_GUARD_CAUTION": 0.20,
-            "SOFT_GUARD_RESUME": 0.16,
-            "MARGIN_USAGE_THROTTLE": 0.60,
-            "MARGIN_USAGE_BLOCK": 0.78,
-            "MARGIN_USAGE_RESUME": 0.66,
-            "MARGIN_USAGE_THROTTLE_RESUME": 0.55,
-            "MARGIN_FREE_RATIO_THROTTLE": 0.35,
-            "MARGIN_FREE_RATIO_BLOCK": 0.18,
-            "MARGIN_FREE_RATIO_RESUME": 0.30,
-            "MARGIN_FREE_RATIO_THROTTLE_RESUME": 0.40,
+            "ACCOUNT_RISK_PER_TRADE": 0.06,
+            "RISK_MULTIPLIER_MAX": 2.8,
+            "SOFT_GUARD_LIMIT": 0.28,
+            "SOFT_GUARD_ALERT": 0.23,
+            "SOFT_GUARD_CAUTION": 0.16,
+            "SOFT_GUARD_RESUME": 0.12,
+            "SOFT_GUARD_MIN_THROTTLE": 0.45,
+            "MARGIN_USAGE_THROTTLE": 0.52,
+            "MARGIN_USAGE_BLOCK": 0.70,
+            "MARGIN_USAGE_RESUME": 0.60,
+            "MARGIN_USAGE_THROTTLE_RESUME": 0.48,
+            "MARGIN_FREE_RATIO_THROTTLE": 0.40,
+            "MARGIN_FREE_RATIO_BLOCK": 0.24,
+            "MARGIN_FREE_RATIO_RESUME": 0.36,
+            "MARGIN_FREE_RATIO_THROTTLE_RESUME": 0.44,
+            "MARGIN_GUARD_MIN_THROTTLE": 0.40,
         },
     },
     "high": {
         "label": "Aggressive compounding",
         "description": "Open the throttle when market conditions are exceptional and you can monitor closely.",
         "settings": {
-            "ACCOUNT_RISK_PER_TRADE": 0.16,
-            "RISK_MULTIPLIER_MAX": 4.2,
-            "SOFT_GUARD_LIMIT": 0.38,
-            "SOFT_GUARD_ALERT": 0.32,
-            "SOFT_GUARD_CAUTION": 0.22,
-            "SOFT_GUARD_RESUME": 0.18,
-            "MARGIN_USAGE_THROTTLE": 0.68,
-            "MARGIN_USAGE_BLOCK": 0.82,
-            "MARGIN_USAGE_RESUME": 0.76,
-            "MARGIN_USAGE_THROTTLE_RESUME": 0.62,
-            "MARGIN_FREE_RATIO_THROTTLE": 0.28,
-            "MARGIN_FREE_RATIO_BLOCK": 0.15,
-            "MARGIN_FREE_RATIO_RESUME": 0.22,
-            "MARGIN_FREE_RATIO_THROTTLE_RESUME": 0.32,
+            "ACCOUNT_RISK_PER_TRADE": 0.09,
+            "RISK_MULTIPLIER_MAX": 3.4,
+            "SOFT_GUARD_LIMIT": 0.33,
+            "SOFT_GUARD_ALERT": 0.28,
+            "SOFT_GUARD_CAUTION": 0.20,
+            "SOFT_GUARD_RESUME": 0.16,
+            "SOFT_GUARD_MIN_THROTTLE": 0.42,
+            "MARGIN_USAGE_THROTTLE": 0.58,
+            "MARGIN_USAGE_BLOCK": 0.74,
+            "MARGIN_USAGE_RESUME": 0.66,
+            "MARGIN_USAGE_THROTTLE_RESUME": 0.52,
+            "MARGIN_FREE_RATIO_THROTTLE": 0.36,
+            "MARGIN_FREE_RATIO_BLOCK": 0.22,
+            "MARGIN_FREE_RATIO_RESUME": 0.32,
+            "MARGIN_FREE_RATIO_THROTTLE_RESUME": 0.40,
+            "MARGIN_GUARD_MIN_THROTTLE": 0.38,
         },
     },
 }
 
 risk_profile_state["settings"] = dict(RISK_PRESETS["medium"]["settings"])  # type: ignore[index]
 risk_profile_state["applied_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+risk_multiplier_state: dict[str, object] = {
+    "last_violation": None,
+    "recovery_until": None,
+    "recovery_cap": RISK_MULTIPLIER_RELIEF_MAX,
+}
 
 
 def get_account_balance() -> float:
@@ -2269,22 +2919,40 @@ TRAILING_DISTANCE_TIGHT = 0.8   # Tighter trailing distance after strong move
 TRAILING_ULTRA_PROFIT = 4.0     # Aggressively trail once profit exceeds 4x ATR
 TRAILING_DISTANCE_ULTRA = 0.5   # Very tight trailing distance for deep winners
 TRAILING_MICRO_DISTANCE = 0.65  # Micro-lot positions trail slightly tighter
+PARTIAL_MICRO_FORCE_ENABLED = True
+PARTIAL_MICRO_FORCE_ATR = 1.35          # Fully exit micro lots once profit exceeds this ATR ratio
+PARTIAL_MICRO_FORCE_VOLUME_FACTOR = 1.6 # Treat positions <= factor * min volume as micro lots
+PARTIAL_MICRO_FORCE_TRAIL = 0.45        # Use tighter trailing distance on micro lots waiting for force exit
+PARTIAL_MICRO_FORCE_COMMENT = "Micro force exit"
 
 
-def get_symbol_currency_exposure(symbol: str) -> list:
-    """Get list of currencies this symbol is exposed to for news filtering."""
-    if symbol == "EURUSD+":
-        return ["EUR", "USD"]
-    elif symbol == "GBPUSD+":
-        return ["GBP", "USD"]
-    elif symbol == "USDJPY+":
-        return ["USD", "JPY"]
-    elif symbol == "GBPJPY+":
-        return ["GBP", "JPY"]
-    elif symbol == "XAUUSD+":
-        return ["USD"]  # Gold primarily affected by USD
-    else:
-        return ["USD"]  # Default to USD exposure
+def get_symbol_currency_exposure(symbol: str) -> list[str]:
+    """Infer the primary currencies for a tradable instrument."""
+    if not symbol:
+        return ["USD"]
+
+    normalized = symbol.upper().replace(".", "").replace("_", "").rstrip("+")
+
+    custom_map = {
+        "EURUSD": ["EUR", "USD"],
+        "GBPUSD": ["GBP", "USD"],
+        "USDJPY": ["USD", "JPY"],
+        "GBPJPY": ["GBP", "JPY"],
+        "XAUUSD": ["XAU", "USD"],
+        "XAGUSD": ["XAG", "USD"],
+        "BTCUSD": ["BTC", "USD"],
+        "ETHUSD": ["ETH", "USD"],
+    }
+
+    if normalized in custom_map:
+        return custom_map[normalized]
+
+    if len(normalized) >= 6:
+        base = normalized[:3]
+        quote = normalized[3:6]
+        return [base, quote]
+
+    return ["USD"]
 
 
 def is_news_blackout_period(symbol: str) -> tuple[bool, str]:
@@ -2333,6 +3001,7 @@ def manage_position_stops(symbol: str, atr_value: float) -> dict[str, int]:
         "partials_taken": 0,
         "partials_failed": 0,
         "partials_unavailable": 0,
+        "partials_forced": 0,
     }
 
     if not ENABLE_ADVANCED_STOPS or not atr_value:
@@ -2369,6 +3038,9 @@ def manage_position_stops(symbol: str, atr_value: float) -> dict[str, int]:
 
             if volume <= 0:
                 continue
+
+            micro_lot_threshold = min_volume * PARTIAL_MICRO_FORCE_VOLUME_FACTOR
+            micro_lot = volume <= (micro_lot_threshold + 1e-9)
 
             if position_type == mt5.POSITION_TYPE_BUY:
                 profit_distance = current_price - open_price
@@ -2416,8 +3088,9 @@ def manage_position_stops(symbol: str, atr_value: float) -> dict[str, int]:
                     trail_distance = min(trail_distance, TRAILING_DISTANCE_TIGHT)
                 if profit_atr >= TRAILING_ULTRA_PROFIT:
                     trail_distance = min(trail_distance, TRAILING_DISTANCE_ULTRA)
-                if volume <= min_volume + 1e-9:
-                    trail_distance = min(trail_distance, TRAILING_MICRO_DISTANCE)
+                if micro_lot:
+                    tight_micro_trail = PARTIAL_MICRO_FORCE_TRAIL if profit_atr >= PARTIAL_TP_RATIO else TRAILING_MICRO_DISTANCE
+                    trail_distance = min(trail_distance, tight_micro_trail)
 
                 trail_distance = max(0.1, trail_distance)
 
@@ -2474,10 +3147,28 @@ def manage_position_stops(symbol: str, atr_value: float) -> dict[str, int]:
                 partial_volume = volume * PARTIAL_TAKE_PROFIT
                 if partial_volume < min_volume - 1e-9:
                     stats["partials_unavailable"] += 1
-                    print(
-                        f"ℹ️ {symbol} ticket {ticket}: partial target {partial_volume:.2f} below min lot "
-                        f"{min_volume:.2f}; relying on trailing instead."
-                    )
+                    if micro_lot:
+                        print(
+                            f"ℹ️ {symbol} ticket {ticket}: micro lot {volume:.2f} can't partial (min {min_volume:.2f}). "
+                            f"Using tight trail {PARTIAL_MICRO_FORCE_TRAIL:.2f} ATR while awaiting force exit."
+                        )
+                        if profit_atr >= PARTIAL_MICRO_FORCE_ATR and PARTIAL_MICRO_FORCE_ENABLED:
+                            if close_partial_position(ticket, volume, reason=PARTIAL_MICRO_FORCE_COMMENT):
+                                stats["partials_forced"] += 1
+                                print(
+                                    f"✅ {symbol} ticket {ticket}: forced full exit at {profit_atr:.1f}x ATR (micro lot)."
+                                )
+                                continue
+                            else:
+                                stats["partials_failed"] += 1
+                                print(
+                                    f"⚠️ {symbol} ticket {ticket}: forced exit request failed for {volume:.2f} lots."
+                                )
+                    else:
+                        print(
+                            f"ℹ️ {symbol} ticket {ticket}: partial target {partial_volume:.2f} below min lot "
+                            f"{min_volume:.2f}; relying on trailing instead."
+                        )
                 else:
                     if close_partial_position(ticket, partial_volume):
                         stats["partials_taken"] += 1
@@ -2553,8 +3244,8 @@ def modify_position_sl(ticket: int, new_sl: float, attempts: int = 3, backoff: f
         return False
 
 
-def close_partial_position(ticket: int, volume: float):
-    """Close partial position for profit taking."""
+def close_partial_position(ticket: int, volume: float, reason: str = "Partial profit") -> bool:
+    """Close a portion of an open position for profit taking or guard-driven scaling."""
     try:
         position = mt5.positions_get(ticket=ticket)
         if not position:
@@ -2609,6 +3300,8 @@ def close_partial_position(ticket: int, volume: float):
         filling_type = resolve_filling_type(symbol_info)
         time_type = getattr(mt5, 'ORDER_TIME_GTC', 0)
         
+        comment_text = sanitize_comment(reason or "Partial profit")
+
         request = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": symbol,
@@ -2616,7 +3309,7 @@ def close_partial_position(ticket: int, volume: float):
             "type": order_type,
             "position": ticket,
             "price": price,
-            "comment": "Partial profit",
+            "comment": comment_text,
             "type_filling": filling_type,
             "type_time": time_type,
             "deviation": 10,
@@ -2705,6 +3398,150 @@ def close_symbol_positions(
     except Exception as exc:
         print(f"Error while closing positions for {symbol}: {exc}")
         return 0
+
+
+def execute_margin_unwind(
+    margin_status: dict[str, float | bool | str | None],
+    positions: Iterable[Any],
+) -> dict[str, float | int | str | bool]:
+    """Automatically trim exposure when the margin guard begins throttling or blocks entries."""
+    stats: dict[str, float | int | str | bool] = {
+        "attempted": False,
+        "closed_tickets": 0,
+        "closed_volume": 0.0,
+        "failures": 0,
+        "reason": "",
+    }
+
+    if not MARGIN_UNWIND_ENABLED:
+        return stats
+
+    position_list = list(positions or [])
+    if not position_list:
+        return stats
+
+    throttle = float(margin_status.get("throttle", 1.0) or 1.0)
+    severity = float(margin_status.get("severity", 0.0) or 0.0)
+    allowed = bool(margin_status.get("allowed", True))
+    status = str(margin_status.get("status") or "clear")
+    usage = float(margin_status.get("usage", 0.0) or 0.0)
+    free_ratio = float(margin_status.get("free_ratio", 1.0) or 1.0)
+
+    should_unwind = False
+    trigger_reason = ""
+
+    if not allowed or status == "blocked":
+        should_unwind = True
+        trigger_reason = "blocked"
+    elif status == "throttle" or throttle < MARGIN_UNWIND_TRIGGER_THROTTLE or severity >= MARGIN_UNWIND_TRIGGER_SEVERITY:
+        should_unwind = True
+        trigger_reason = "throttle"
+
+    if not should_unwind:
+        return stats
+
+    now = datetime.now(timezone.utc)
+    last_unwind_iso = margin_guard_state.get("last_unwind")
+    if isinstance(last_unwind_iso, str):
+        try:
+            last_unwind = datetime.fromisoformat(last_unwind_iso)
+            if (now - last_unwind).total_seconds() < MARGIN_UNWIND_COOLDOWN_SECONDS:
+                stats["reason"] = "cooldown"
+                return stats
+        except ValueError:
+            pass
+
+    total_volume = sum(max(0.0, float(getattr(pos, "volume", 0.0) or 0.0)) for pos in position_list)
+    if total_volume <= 0.0:
+        return stats
+
+    if not allowed or status == "blocked":
+        target_fraction = MARGIN_UNWIND_BLOCK_REDUCTION + severity * 0.25
+    else:
+        throttle_deficit = max(0.0, MARGIN_UNWIND_TRIGGER_THROTTLE - throttle)
+        target_fraction = MARGIN_UNWIND_MIN_REDUCTION + (throttle_deficit * 0.8) + (severity * 0.4)
+
+    target_fraction = max(MARGIN_UNWIND_MIN_REDUCTION, min(MARGIN_UNWIND_MAX_REDUCTION, target_fraction))
+    target_volume = max(MARGIN_UNWIND_MIN_VOLUME, total_volume * target_fraction)
+    target_volume = min(target_volume, total_volume)
+
+    stats["attempted"] = True
+    stats["reason"] = trigger_reason or status
+
+    sorted_positions: list[dict[str, float | int | str]] = []
+    for pos in position_list:
+        volume = float(getattr(pos, "volume", 0.0) or 0.0)
+        if volume <= 0:
+            continue
+        profit = float(getattr(pos, "profit", 0.0) or 0.0)
+        margin = float(getattr(pos, "margin", 0.0) or 0.0)
+        symbol = str(getattr(pos, "symbol", ""))
+        ticket = int(getattr(pos, "ticket", 0))
+        sorted_positions.append(
+            {
+                "ticket": ticket,
+                "volume": volume,
+                "profit": profit,
+                "margin": margin,
+                "symbol": symbol,
+            }
+        )
+
+    if not sorted_positions:
+        return stats
+
+    sorted_positions.sort(
+        key=lambda entry: (
+            0 if float(entry.get("profit", 0.0) or 0.0) < 0 else 1,
+            -float(entry.get("margin", 0.0) or 0.0),
+            -float(entry.get("volume", 0.0) or 0.0),
+        )
+    )
+
+    remaining = target_volume
+    for entry in sorted_positions:
+        if remaining <= MARGIN_UNWIND_MIN_VOLUME * 0.5:
+            break
+
+        ticket = int(entry["ticket"])
+        volume = float(entry["volume"])
+        if volume <= 0:
+            continue
+
+        close_amount = min(volume, remaining)
+        if close_amount < MIN_LOT_SIZE:
+            if remaining >= volume - (MIN_LOT_SIZE * 0.4):
+                close_amount = volume
+            else:
+                continue
+
+        success = close_partial_position(ticket, close_amount, reason="Margin unwind")
+        if success:
+            stats["closed_tickets"] += 1
+            stats["closed_volume"] += close_amount
+            remaining = max(0.0, remaining - close_amount)
+            time.sleep(0.2)
+        else:
+            stats["failures"] += 1
+
+        if remaining <= MIN_LOT_SIZE * 0.4:
+            break
+
+    if stats["closed_volume"] > 0:
+        margin_guard_state["last_unwind"] = now.isoformat()
+        print(
+            "🧹 Margin guard unwind: trimmed "
+            f"{stats['closed_volume']:.2f} lots across {stats['closed_tickets']} tickets "
+            f"(status {status}, throttle {throttle:.0%}, severity {severity:.0%}, "
+            f"usage {usage:.0%}, free {free_ratio:.0%})."
+        )
+    elif stats["attempted"]:
+        print(
+            "⚠️ Margin guard unwind attempt yielded no reductions "
+            f"(status {status}, throttle {throttle:.0%}, severity {severity:.0%})."
+        )
+
+    return stats
 
 
 def clear_counter_signal_state(symbol: str) -> None:
@@ -3781,6 +4618,209 @@ def normalize_volume(volume: float, symbol_info) -> float:
     return round(normalized, decimals)
 
 
+def _normalize_symbol_key(symbol: str | None) -> str:
+    if not symbol:
+        return ""
+    return symbol.upper().replace(".", "").replace("_", "").rstrip("+")
+
+
+def _get_symbol_exposure_limits(symbol: str) -> dict[str, float | None]:
+    limits: dict[str, float | None] = {
+        "max_total": EXPOSURE_SYMBOL_DEFAULT_MAX_TOTAL,
+        "max_same": EXPOSURE_SYMBOL_DEFAULT_MAX_SAME,
+    }
+    override = EXPOSURE_SYMBOL_OVERRIDES.get(symbol)
+    if override:
+        limits.update(override)
+    return limits
+
+
+def _estimate_position_notional(
+    symbol: str,
+    volume: float,
+    price: float | None = None,
+    symbol_info=None,
+) -> float:
+    if volume <= 0:
+        return 0.0
+
+    normalized_symbol = _normalize_symbol_key(symbol)
+    info = symbol_info or mt5.symbol_info(symbol)
+    contract_size = float(getattr(info, "trade_contract_size", 0.0) or 0.0) if info else 0.0
+    if contract_size <= 0:
+        contract_size = 100000.0 if len(normalized_symbol) >= 6 else 1.0
+
+    px = float(price or 0.0)
+    if px <= 0:
+        tick = mt5.symbol_info_tick(symbol)
+        if tick:
+            px = float(tick.ask or tick.bid or tick.last or 0.0)
+    if px <= 0 and info:
+        px = float(getattr(info, "last", 0.0) or 0.0)
+    if px <= 0:
+        px = 1.0
+
+    notional = abs(volume) * max(contract_size, 1.0)
+    notional *= max(px, 0.0001)
+    return float(notional)
+
+
+def _collect_currency_notional(positions: Iterable[Any]) -> dict[str, float]:
+    exposures: defaultdict[str, float] = defaultdict(float)
+    info_cache: dict[str, Any] = {}
+
+    for pos in positions or []:
+        symbol = getattr(pos, "symbol", None)
+        volume = float(getattr(pos, "volume", 0.0) or 0.0)
+        if not symbol or volume <= 0:
+            continue
+
+        price = float(getattr(pos, "price_current", 0.0) or getattr(pos, "price_open", 0.0) or 0.0)
+        symbol_key = _normalize_symbol_key(symbol)
+        info = info_cache.get(symbol_key)
+        if info is None:
+            info = mt5.symbol_info(symbol)
+            info_cache[symbol_key] = info
+
+        notional = _estimate_position_notional(symbol, volume, price, info)
+        for currency in get_symbol_currency_exposure(symbol):
+            exposures[currency] += notional
+
+    return dict(exposures)
+
+
+def apply_exposure_caps(
+    symbol: str,
+    signal: str,
+    requested_volume: float,
+    price: float,
+    symbol_info,
+    positions: Iterable[Any],
+    account_equity: float,
+) -> dict[str, object]:
+    result: dict[str, object] = {
+        "allowed": True,
+        "volume": max(0.0, float(requested_volume)),
+        "reason": "",
+        "warnings": [],
+    }
+
+    if not EXPOSURE_CAPS_ENABLED:
+        return result
+
+    volume = float(result["volume"])
+    if volume <= 0:
+        return result
+
+    positions_list = list(positions or [])
+    symbol_key = _normalize_symbol_key(symbol)
+    direction_type = mt5.POSITION_TYPE_BUY if signal == "buy" else mt5.POSITION_TYPE_SELL
+
+    total_volume = 0.0
+    same_volume = 0.0
+    for pos in positions_list:
+        pos_symbol = getattr(pos, "symbol", None)
+        if _normalize_symbol_key(pos_symbol) != symbol_key:
+            continue
+        pos_volume = float(getattr(pos, "volume", 0.0) or 0.0)
+        if pos_volume <= 0:
+            continue
+        total_volume += pos_volume
+        if getattr(pos, "type", None) == direction_type:
+            same_volume += pos_volume
+
+    limits = _get_symbol_exposure_limits(symbol_key)
+    reasons: list[str] = []
+
+    max_same = limits.get("max_same")
+    if max_same is not None:
+        available_same = max(0.0, max_same - same_volume)
+        if available_same + 1e-9 < volume:
+            volume = min(volume, available_same)
+            reasons.append(
+                f"symbol {symbol_key or symbol} directional cap {same_volume + volume:.2f}/{max_same:.2f} lots"
+            )
+
+    max_total = limits.get("max_total")
+    if max_total is not None:
+        available_total = max(0.0, max_total - total_volume)
+        if available_total + 1e-9 < volume:
+            volume = min(volume, available_total)
+            reasons.append(
+                f"symbol {symbol_key or symbol} total cap {total_volume + volume:.2f}/{max_total:.2f} lots"
+            )
+
+        if available_total < max(EXPOSURE_SYMBOL_MIN_REMAINDER, MIN_LOT_SIZE):
+            result.update({
+                "allowed": False,
+                "volume": 0.0,
+                "reason": f"symbol cap reached ({total_volume:.2f}/{max_total:.2f} lots)",
+            })
+            return result
+
+    if volume < MIN_LOT_SIZE - 1e-6:
+        block_reason = reasons[-1] if reasons else f"symbol exposure already {total_volume:.2f} lots"
+        result.update({"allowed": False, "volume": 0.0, "reason": block_reason})
+        return result
+
+    equity = float(account_equity or 0.0)
+    if equity <= 0:
+        equity = get_account_equity_quiet()
+    if equity <= 0:
+        equity = 10000.0
+
+    per_lot_notional = _estimate_position_notional(symbol, 1.0, price, symbol_info)
+    per_lot_notional = max(per_lot_notional, 1.0)
+
+    exposures_by_currency = _collect_currency_notional(positions_list)
+    warnings: list[str] = []
+    currency_reasons: list[str] = []
+    candidate_volume = volume
+
+    for currency in get_symbol_currency_exposure(symbol):
+        multiplier = EXPOSURE_CURRENCY_OVERRIDES.get(currency, EXPOSURE_CURRENCY_EQUITY_MULTIPLIER)
+        multiplier = max(float(multiplier), 1.0)
+        limit = equity * multiplier
+        if limit <= 0:
+            continue
+
+        existing_notional = exposures_by_currency.get(currency, 0.0)
+        available_notional = max(0.0, limit - existing_notional)
+        allowed_volume = available_notional / max(per_lot_notional, 1e-6)
+        if allowed_volume + 1e-9 < candidate_volume:
+            candidate_volume = min(candidate_volume, allowed_volume)
+            currency_reasons.append(
+                f"{currency} cap {min(limit, existing_notional + per_lot_notional * candidate_volume):.0f}/{limit:.0f}"
+            )
+
+        projected_notional = existing_notional + per_lot_notional * candidate_volume
+        utilization = projected_notional / limit if limit else 0.0
+        if utilization >= 1.0 - 1e-6:
+            warnings.append(
+                f"⚠️ {currency} exposure fully allocated ({projected_notional:.0f}/{limit:.0f})."
+            )
+        elif utilization >= EXPOSURE_CURRENCY_WARN_RATIO:
+            warnings.append(
+                f"⚠️ {currency} exposure {projected_notional:.0f}/{limit:.0f} ({utilization:.0%})."
+            )
+
+    if candidate_volume < MIN_LOT_SIZE - 1e-6:
+        block_reason = currency_reasons[-1] if currency_reasons else "currency exposure cap"
+        result.update({"allowed": False, "volume": 0.0, "reason": block_reason, "warnings": warnings})
+        return result
+
+    if candidate_volume < volume - 1e-6 and currency_reasons:
+        reasons.extend(currency_reasons)
+
+    result.update({
+        "allowed": True,
+        "volume": candidate_volume,
+        "reason": "; ".join(reasons),
+        "warnings": warnings,
+    })
+    return result
+
+
 def resolve_filling_type(symbol_info) -> int:
     """Select a filling mode supported by the symbol, falling back safely."""
     default = getattr(mt5, 'ORDER_FILLING_IOC', 0)
@@ -4005,6 +5045,13 @@ def send_order(
         print(f"Cannot send order for {symbol}: symbol_info or tick is None (symbol_info={symbol_info}, tick={tick})")
         return
 
+    account_info = mt5.account_info()
+    account_equity = float(getattr(account_info, "equity", 0.0) or 0.0)
+    if account_equity <= 0 and account_info is not None:
+        account_equity = float(getattr(account_info, "balance", 0.0) or 0.0)
+    positions_snapshot = list(mt5.positions_get() or [])
+
+    price = tick.ask if signal == 'buy' else tick.bid
     spread = (tick.ask - tick.bid) if tick else None
     point = getattr(symbol_info, 'point', None) or 0.0001
     spread_points = (spread / point) if (spread is not None and point) else float('inf')
@@ -4056,6 +5103,41 @@ def send_order(
             lot = lot * correlation_multiplier
             print(f"📉 {symbol}: Position size reduced to {lot:.2f} lots due to correlation exposure")
             
+    exposure_check = apply_exposure_caps(
+        symbol=symbol,
+        signal=signal,
+        requested_volume=lot,
+        price=price,
+        symbol_info=symbol_info,
+        positions=positions_snapshot,
+        account_equity=account_equity,
+    )
+
+    if not exposure_check.get("allowed", True):
+        reason = exposure_check.get("reason") or "exposure cap"
+        print(f"🚫 {symbol}: Exposure cap blocked new order ({reason}).")
+        for warning in exposure_check.get("warnings", []):
+            print(warning)
+        return
+
+    capped_volume = float(exposure_check.get("volume", lot) or 0.0)
+    if capped_volume <= 0:
+        print(f"🚫 {symbol}: Exposure cap produced zero allowable volume; skipping order.")
+        for warning in exposure_check.get("warnings", []):
+            print(warning)
+        return
+
+    if abs(capped_volume - lot) >= 1e-6:
+        lot = capped_volume
+        reason = exposure_check.get("reason")
+        if reason:
+            print(f"🧮 {symbol}: Exposure cap resized order to {lot:.2f} lots ({reason}).")
+        else:
+            print(f"🧮 {symbol}: Exposure cap resized order to {lot:.2f} lots.")
+
+    for warning in exposure_check.get("warnings", []):
+        print(warning)
+
     if spread_points > SPREAD_POINTS_LIMIT:
         print(f"🚫 {symbol}: Spread {spread_points:.1f} points exceeds limit {SPREAD_POINTS_LIMIT}")
         return
@@ -4067,8 +5149,10 @@ def send_order(
             return
 
     lot = normalize_volume(lot, symbol_info)
+    if lot < MIN_LOT_SIZE - 1e-6:
+        print(f"🚫 {symbol}: Normalized volume {lot:.2f} lots below broker minimum after exposure trims.")
+        return
     print(f"⚖️ {symbol}: Final order volume {lot:.2f} lots")
-    price = tick.ask if signal == 'buy' else tick.bid
     order_type = mt5.ORDER_TYPE_BUY if signal == 'buy' else mt5.ORDER_TYPE_SELL
 
     # Compute SL/TP from ATR if available
@@ -4178,9 +5262,9 @@ def send_order(
 
         break
 
-def log_manual_stop_summary(scan_counter: int) -> None:
-    """Emit a concise account summary when run is stopped manually."""
-    print(f"\n🛑 Manual stop requested — wrapping up after scan #{scan_counter}.")
+def log_manual_stop_summary(scan_counter: int, trigger: str = "Manual stop requested") -> None:
+    """Emit a concise account summary when the live loop halts."""
+    print(f"\n🛑 {trigger} — wrapping up after scan #{scan_counter}.")
 
     account_info = mt5.account_info()
     if account_info:
@@ -4233,65 +5317,85 @@ scan_counter = 0
 
 try:
     while True:
-        scan_counter += 1
-        process_telegram_commands(TELEGRAM_CONTROLLER)
-        enforce_kill_switch()
-        if wait_if_paused(TELEGRAM_CONTROLLER):
-            enforce_kill_switch()
+        try:
+            scan_counter += 1
             process_telegram_commands(TELEGRAM_CONTROLLER)
             enforce_kill_switch()
-            continue
-        if not ensure_connection_ready():
-            print("Waiting before retrying MT5 connection check...")
-            time.sleep(5)
-            continue
+            if wait_if_paused(TELEGRAM_CONTROLLER):
+                enforce_kill_switch()
+                process_telegram_commands(TELEGRAM_CONTROLLER)
+                enforce_kill_switch()
+                continue
+            if not ensure_connection_ready():
+                print("Waiting before retrying MT5 connection check...")
+                time.sleep(5)
+                continue
 
-        cycle_stats: dict[str, int] = defaultdict(int)
-        now_local = datetime.now()
-        now_utc = datetime.now(timezone.utc)
-        print("\n" + "=" * 68)
-        print(f"🔁 Scan #{scan_counter} | Local {now_local.strftime('%Y-%m-%d %H:%M:%S')} | UTC {now_utc.strftime('%H:%M:%S')}")
+            cycle_stats: dict[str, int] = defaultdict(int)
+            now_local = datetime.now()
+            now_utc = datetime.now(timezone.utc)
+            print("\n" + "=" * 68)
+            print(f"🔁 Scan #{scan_counter} | Local {now_local.strftime('%Y-%m-%d %H:%M:%S')} | UTC {now_utc.strftime('%H:%M:%S')}")
 
-        account_info = mt5.account_info()
-        if account_info:
-            margin_level_val = float(getattr(account_info, 'margin_level', 0.0) or 0.0)
-            leverage_setting = getattr(account_info, 'leverage', None)
-            margin_level_display = f"{margin_level_val:.1f}%" if margin_level_val > 0 else "n/a"
-            leverage_display = f"{float(leverage_setting):.0f}x" if leverage_setting else "n/a"
-            print(
-                "💼 Account snapshot -> "
-                f"Balance: {account_info.balance:.2f} | Equity: {account_info.equity:.2f} | "
-                f"Free Margin: {account_info.margin_free:.2f} | Margin Used: {account_info.margin:.2f} | "
-                f"Open PnL: {account_info.profit:.2f}"
-            )
-            if run_baseline_snapshot["equity"] is None:
-                run_baseline_snapshot["balance"] = account_info.balance
-                run_baseline_snapshot["equity"] = account_info.equity
-                run_baseline_snapshot["timestamp"] = now_local.isoformat()
+            account_info = mt5.account_info()
+            if account_info:
+                margin_level_val = float(getattr(account_info, 'margin_level', 0.0) or 0.0)
+                leverage_setting = getattr(account_info, 'leverage', None)
+                margin_level_display = f"{margin_level_val:.1f}%" if margin_level_val > 0 else "n/a"
+                leverage_display = f"{float(leverage_setting):.0f}x" if leverage_setting else "n/a"
+                print(
+                    "💼 Account snapshot -> "
+                    f"Balance: {account_info.balance:.2f} | Equity: {account_info.equity:.2f} | "
+                    f"Free Margin: {account_info.margin_free:.2f} | Margin Used: {account_info.margin:.2f} | "
+                    f"Open PnL: {account_info.profit:.2f}"
+                )
+                if run_baseline_snapshot["equity"] is None:
+                    run_baseline_snapshot["balance"] = account_info.balance
+                    run_baseline_snapshot["equity"] = account_info.equity
+                    run_baseline_snapshot["timestamp"] = now_local.isoformat()
+                else:
+                    baseline_equity = float(run_baseline_snapshot.get("equity") or 0.0)
+                    baseline_balance = float(run_baseline_snapshot.get("balance") or 0.0)
+                    equity_delta = account_info.equity - baseline_equity
+                    balance_delta = account_info.balance - baseline_balance
+                    equity_pct = (equity_delta / baseline_equity) if baseline_equity else 0.0
+                    margin_util = (account_info.margin / account_info.equity) if account_info.equity else 0.0
+                    print(
+                        f"📈 Run performance -> Equity Δ {equity_delta:+.2f} ({equity_pct:+.2%}) | Balance Δ {balance_delta:+.2f}"
+                    )
+                    print(
+                        f"⚙️ Leverage usage -> Margin {account_info.margin:.2f} ({margin_util:.1%} of equity) | "
+                        f"Margin level {margin_level_display} | Leverage setting {leverage_display}"
+                    )
             else:
-                baseline_equity = float(run_baseline_snapshot.get("equity") or 0.0)
-                baseline_balance = float(run_baseline_snapshot.get("balance") or 0.0)
-                equity_delta = account_info.equity - baseline_equity
-                balance_delta = account_info.balance - baseline_balance
-                equity_pct = (equity_delta / baseline_equity) if baseline_equity else 0.0
-                margin_util = (account_info.margin / account_info.equity) if account_info.equity else 0.0
-                print(
-                    f"📈 Run performance -> Equity Δ {equity_delta:+.2f} ({equity_pct:+.2%}) | Balance Δ {balance_delta:+.2f}"
-                )
-                print(
-                    f"⚙️ Leverage usage -> Margin {account_info.margin:.2f} ({margin_util:.1%} of equity) | "
-                    f"Margin level {margin_level_display} | Leverage setting {leverage_display}"
-                )
-        else:
-            print("💼 Account snapshot unavailable (mt5.account_info() returned None).")
+                print("💼 Account snapshot unavailable (mt5.account_info() returned None).")
 
-        soft_guard_status = evaluate_soft_guard(
-            getattr(account_info, 'balance', None) if account_info else None,
-            getattr(account_info, 'equity', None) if account_info else None,
-        )
+            soft_guard_status = evaluate_soft_guard(
+                getattr(account_info, 'balance', None) if account_info else None,
+                getattr(account_info, 'equity', None) if account_info else None,
+            )
+        except EmergencyStop:
+            log_manual_stop_summary(scan_counter)
+            wait_for_kill_clear(TELEGRAM_CONTROLLER)
+            continue
+
         margin_guard_status = evaluate_margin_guard(account_info)
 
-        active_positions = mt5.positions_get() or []
+        active_positions = list(mt5.positions_get() or [])
+
+        unwind_result = execute_margin_unwind(margin_guard_status, active_positions)
+        if unwind_result.get("closed_volume", 0.0) > 0:
+            # Refresh account + guard snapshots after trimming exposure
+            time.sleep(0.5)
+            account_info = mt5.account_info()
+            if account_info:
+                soft_guard_status = evaluate_soft_guard(
+                    getattr(account_info, 'balance', None),
+                    getattr(account_info, 'equity', None),
+                )
+                margin_guard_status = evaluate_margin_guard(account_info)
+            active_positions = list(mt5.positions_get() or [])
+
         if active_positions:
             print("📂 Open positions -> " + summarize_open_positions(active_positions))
             log_position_details(active_positions, header="📘 Position ledger (all symbols):")
@@ -5005,9 +6109,30 @@ try:
                         f"- beaten by {best_candidate['label']} (conf {best_candidate['confidence']:.2f}, priority {best_candidate['priority']})"
                     )
         log_cycle_summary(active_symbols, cycle_stats, scan_counter)
+        cycle_sleep_deadline = time.time() + SCAN_INTERVAL_SECONDS
+
+        _expire_kill_request_if_needed()
         process_telegram_commands(TELEGRAM_CONTROLLER)
-        enforce_kill_switch()
-        time.sleep(SCAN_INTERVAL_SECONDS)
+        if not enforce_kill_switch_safe(TELEGRAM_CONTROLLER, scan_counter):
+            continue
+
+        sleep_interrupted = False
+        while True:
+            remaining = cycle_sleep_deadline - time.time()
+            if remaining <= 0:
+                break
+            sleep_chunk = min(remaining, TELEGRAM_POLL_SECONDS)
+            if sleep_chunk <= 0:
+                sleep_chunk = min(remaining, 0.25)
+            time.sleep(sleep_chunk)
+            _expire_kill_request_if_needed()
+            process_telegram_commands(TELEGRAM_CONTROLLER)
+            if not enforce_kill_switch_safe(TELEGRAM_CONTROLLER, scan_counter):
+                sleep_interrupted = True
+                break
+
+        if sleep_interrupted:
+            continue
 except KeyboardInterrupt:
     log_manual_stop_summary(scan_counter)
 finally:

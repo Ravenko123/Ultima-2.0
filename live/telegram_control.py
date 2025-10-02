@@ -58,6 +58,16 @@ class TelegramController:
         except self._requests.exceptions.RequestException as exc:
             print(f"⚠️  Telegram sendMessage error: {exc}")
 
+    def broadcast_message(self, text: str, chat_ids: Optional[Iterable[int]] = None) -> None:
+        targets = list(chat_ids) if chat_ids else list(self._allowed_user_ids)
+        if not targets:
+            return
+        for chat_id in targets:
+            try:
+                self.send_message(int(chat_id), text)
+            except Exception as exc:  # pragma: no cover - best-effort broadcast
+                print(f"⚠️  Telegram broadcast to {chat_id} failed: {exc}")
+
     # Internal helpers -----------------------------------------------------------------
 
     def _run_loop(self) -> None:
@@ -121,6 +131,7 @@ class TelegramController:
                     "user_id": user_id,
                     "message_id": message.get("message_id"),
                     "text": text,
+                    "timestamp": message.get("date"),
                 }
             )
             self._command_queue.put(command_payload)
@@ -143,7 +154,24 @@ class TelegramController:
         command = raw_command.lower()
         args = parts[1:]
 
-        if command in {"pause", "resume", "performance", "risk", "help", "kill", "confirmkill", "cancelkill"}:
+        if command in {
+            "pause",
+            "resume",
+            "performance",
+            "risk",
+            "risklist",
+            "status",
+            "guards",
+            "exposure",
+            "flatten",
+            "scaleout",
+            "help",
+            "kill",
+            "confirmkill",
+            "cancelkill",
+            "start",
+            "startbot",
+        }:
             return {"name": command, "args": args}
 
         # Any other slash command bubbles up as unknown so the caller can respond politely
