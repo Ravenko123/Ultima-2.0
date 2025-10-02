@@ -1,0 +1,6 @@
+{
+  "bot_token": "123456789:REPLACE_WITH_REAL_TOKEN",
+  "allowed_user_ids": [
+    6401257809
+  ]
+}

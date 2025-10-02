@@ -114,3 +114,50 @@ The bot is now equipped with institutional-grade features that should significan
   - Ensure risk guard thresholds (soft/hard) remain untouched and trigger as expected in logs.
 
 **Status: PRIORITY 1 IMPLEMENTATION COMPLETE** ✅
+
+## 📲 Telegram Remote Control (New)
+
+### Setup
+
+1. **Create bot token** with [@BotFather](https://t.me/BotFather) and keep it secret.
+2. Place credentials either in environment variables **before** launching the bot:
+
+   - `ULTIMA_TELEGRAM_BOT_TOKEN`
+   - `ULTIMA_TELEGRAM_ALLOWED_IDS` (comma-separated numeric IDs; e.g. `6401257809`)
+
+   or create `telegram_settings.json` (see `telegram_settings.example.json`) in the repo root or inside `live/`:
+
+   ```json
+   {
+     "bot_token": "123456789:REPLACE_WITH_REAL_TOKEN",
+     "allowed_user_ids": [6401257809]
+   }
+   ```
+
+3. **Whitelist matters**: the bot ignores any Telegram user not in `allowed_user_ids`, preventing strangers from issuing commands.
+
+### Available commands
+
+| Command | Effect |
+| --- | --- |
+| `/pause [reason]` | Immediately pauses new trade entries and notes the optional reason. |
+| `/resume` | Resumes normal trading. |
+| `/performance` | Sends balance, equity, margin usage, guard states, open-position summary, and run-state info. |
+| `/risk <low | medium | high | status>` | Switch between predefined risk tiers or show the current settings. |
+| `/help` | Shows the quick reference table above. |
+
+### Risk presets
+
+| Preset | Account risk / trade | Risk multiplier cap | Soft guard limit | Margin block |
+| --- | --- | --- | --- | --- |
+| **low** | 8% | x2.6 | 28% | 72% |
+| **medium** | 12% | x3.5 | 33% | 78% |
+| **high** | 16% | x4.2 | 38% | 82% |
+
+Switching presets also nudges soft/margin guard alert/resume thresholds so the bot aligns with the chosen aggressiveness. After any change, the command reply confirms the active preset and key risk numbers.
+
+### Pause/resume safeguards
+
+- Live loop checks for Telegram commands every scan and while paused.
+- When paused, the bot idles (no symbol scans) but still reports `/performance` and accepts `/risk` adjustments.
+- All pause/resume transitions are logged to console and mirrored to Telegram.
