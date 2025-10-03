@@ -1,0 +1,330 @@
+📝 Logging live run to D:\RAVBOTGITHUB\ULTIMA2.0\Ultima-2.0\logs\live_run_20251003_010349.txt (retaining last 30 logs)
+📊 No existing performance file found, starting fresh tracking
+📨 Telegram remote control ready for authorized ID(s): 6401257809
+
+====================================================================
+🔁 Scan #1 | Local 2025-10-03 01:03:49 | UTC 23:03:49
+💼 Account snapshot -> Balance: 883.67 | Equity: 885.75 | Free Margin: 859.42 | Margin Used: 26.33 | Open PnL: 2.08
+📂 Open positions -> XAUUSD+: 1 pos (buy 0.04, sell 0.00, net +0.04, pnl 2.08)
+📘 Position ledger (all symbols):
+   • XAUUSD+ #417837177 BUY 0.04@3857.24→3857.85 (+61 pts) | PnL +2.08 | SL 3845.61 (1224 pts) | TP 3866.23 (838 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-03 01:53:21 | Magic 123456 | Tag MTB17
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: Sydney/Tokyo
+Checking signals at 2025-10-03 01:03:49
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 EURUSD+: Skipping (session priority 2/3 for Sydney/Tokyo)
+📊 USDJPY+: Trading allowed (session priority 5/3 for Sydney/Tokyo)
+USDJPY+ computed ATR(5) = 0.060600
+USDJPY+ Volatility pressure: 0.87 | Candle conviction: 0.50
+📉 USDJPY+ Spread snapshot -> 1.0 pts (0.001000) | Spread/ATR 0.02
+📊 USDJPY+ Market Regime: RANGING
+📈 USDJPY+: no open positions
+💧 USDJPY+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 30.0
+💧 USDJPY+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.17 → x1.46
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 16.0
+💧 USDJPY+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 13.3
+💧 USDJPY+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+✅ USDJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: bullish)
+🔥 USDJPY+: High-risk neutral micro override for BUY (score -0.00% within ±0.02%, guard 1.00).
+🎯 USDJPY+ Momentum Trend: Micro momentum aligned -0.00% ≥ 0.02% (soft confirm, override)
+USDJPY+ Momentum Trend Final Signal: buy (regime: 10.0%, performance: 1.00×, adj priority: 50.0, confidence 0.66/0.50, risk base x1.11 → liquidity x1.39 → alpha x1.39 → low-vol x1.39 → guard x1.00, ATR(5)=0.060600, micro -0.00%/0.02% (soft/override))
+💧 USDJPY+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+🌀 USDJPY+ Mean Reversion: Overriding MTF bias (bullish) in ranging regime for mean reversion signal sell.
+🔥 USDJPY+: High-risk neutral micro override for SELL (score -0.00% within ±0.02%, guard 1.00).
+🎯 USDJPY+ Mean Reversion: Micro momentum aligned -0.00% ≤ -0.02% (soft confirm, override)
+USDJPY+ Mean Reversion Final Signal: sell (regime: 40.0%, performance: 1.00×, adj priority: 2.5, confidence 0.82/0.50, risk base x1.23 → liquidity x1.54 → alpha x1.54 → low-vol x1.54 → guard x1.27, ATR(5)=0.060600, micro -0.00%/-0.02% (soft/override))
+USDJPY+: executing SELL via Mean Reversion (priority 2.5, confidence 0.82) | comment MRS02
+📉 USDJPY+: Spread snapshot 1.0 pts (0.001000) | Spread/ATR 0.02
+Current account equity: $885.75 (balance: $883.67)
+🎯 USDJPY+: base lot 1.32 using risk multiplier 1.27
+🔗 USDJPY+: Correlation check OK - diversified exposure across correlated groups
+🚫 USDJPY+: Exposure cap blocked new order (JPY cap 85032/85032).
+⚠️ USD exposure fully allocated (106290/106290).
+⚠️ JPY exposure fully allocated (85032/85032).
+USDJPY+: sell order aborted (JPY cap 85032/85032).
+USDJPY+: skipping Momentum Trend buy (conf 0.66, priority 50.0) - beaten by Mean Reversion (conf 0.82, priority 2.5)
+📊 GBPUSD+: Skipping (session priority 1/3 for Sydney/Tokyo)
+📊 GBPJPY+: Trading allowed (session priority 4/3 for Sydney/Tokyo)
+GBPJPY+ computed ATR(5) = 0.071200
+GBPJPY+ Volatility pressure: 0.81 | Candle conviction: 0.50
+📉 GBPJPY+ Spread snapshot -> 2.0 pts (0.002000) | Spread/ATR 0.03
+📊 GBPJPY+ Market Regime: TRENDING
+📈 GBPJPY+: no open positions
+💧 GBPJPY+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.07 → x1.34
+ℹ️ GBPJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+💧 GBPJPY+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.00 → x1.25
+ℹ️ GBPJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+💧 GBPJPY+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.11 → x1.39
+ℹ️ GBPJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+💧 GBPJPY+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.09 → x1.36
+✅ GBPJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: bullish)
+🎯 GBPJPY+ Momentum Trend: Micro momentum aligned +0.01% ≥ 0.02% (soft confirm)
+GBPJPY+ Momentum Trend Final Signal: buy (regime: 30.0%, performance: 1.00×, adj priority: 16.7, confidence 0.75/0.53, risk base x1.09 → liquidity x1.36 → alpha x1.36 → low-vol x1.36 → guard x1.02, ATR(5)=0.071200, micro +0.01%/0.02% (soft))
+💧 GBPJPY+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.00 → x1.25
+ℹ️ GBPJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+GBPJPY+: executing BUY via Momentum Trend (priority 16.666666666666668, confidence 0.75) | comment MTB17
+📉 GBPJPY+: Spread snapshot 2.0 pts (0.002000) | Spread/ATR 0.03
+Current account equity: $885.75 (balance: $883.67)
+🎯 GBPJPY+: base lot 0.91 using risk multiplier 1.02
+🚫 GBPJPY+: Exposure cap blocked new order (JPY cap 85032/85032).
+⚠️ GBP exposure fully allocated (87866/87866).
+⚠️ JPY exposure fully allocated (85032/85032).
+GBPJPY+: buy order aborted (JPY cap 85032/85032).
+📊 XAUUSD+: Trading allowed (session priority 3/3 for Sydney/Tokyo)
+XAUUSD+ computed ATR(5) = 4.598000
+XAUUSD+ Volatility pressure: 0.68 | Candle conviction: 0.50
+📉 XAUUSD+ Spread snapshot -> 8.0 pts (0.080000) | Spread/ATR 0.02
+📊 XAUUSD+ Market Regime: TRENDING
+📈 XAUUSD+ Open position -> #417837177 BUY 0.04@3857.24→3857.85 (+61 pts) | PnL +2.08 | SL 3845.61 (1224 pts) | TP 3866.23 (838 pts) | Age 0s | Tag MTB17
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.02 → x1.27
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.00 → x1.25
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.06 → x1.33
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.04 → x1.30
+✅ XAUUSD+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: neutral)
+🎯 XAUUSD+ Momentum Trend: Micro momentum aligned +0.09% ≥ 0.03%
+XAUUSD+ Momentum Trend Final Signal: buy (regime: 30.0%, performance: 1.00×, adj priority: 16.7, confidence 0.85/0.54, risk base x1.04 → liquidity x1.30 → alpha x1.30 → low-vol x1.30 → guard x1.11, ATR(5)=4.598000, micro +0.09%/0.03%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.00 → x1.25
+✅ XAUUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 XAUUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.09% vs required ≤ -0.03%)
+XAUUSD+: pyramiding BUY via Momentum Trend (priority 16.666666666666668, confidence 0.85) | scaling a winner (confidence +0.00), stack 1/4 | comment MTB17
+📉 XAUUSD+: Spread snapshot 8.0 pts (0.080000) | Spread/ATR 0.02
+Current account equity: $885.75 (balance: $883.67)
+🎯 XAUUSD+: base lot 0.14 using risk multiplier 1.46
+🧮 XAUUSD+: Exposure cap resized order to 0.11 lots (XAU cap 56688/56688).
+⚠️ XAU exposure fully allocated (56688/56688).
+⚖️ XAUUSD+: Final order volume 0.11 lots
+XAUUSD+ ATR=4.598000 | SL=3845.29 | TP=3867.13 (SLx=2.75, TPx=2.0)
+⚙️ XAUUSD+: Fill mode IOC, slippage tolerance 5 pts
+OrderSend success for XAUUSD+: buy at 3857.93 | SL=3845.29 TP=3867.13
+📒 Scan #1 summary -> symbols processed 5/5 | open-symbols 1 | candidates 4 | executed 1 | blocked 2 | pyramids 1 | confidence-filtered 0 | micro-filtered 1 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 10 | ATR-missing 0 | micro-overrides 2 | micro-confirms 4
+💧 Liquidity gating -> boosts 15 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+⏱️ Next scan in 60 seconds...
+
+====================================================================
+🔁 Scan #2 | Local 2025-10-03 01:04:49 | UTC 23:04:49
+💼 Account snapshot -> Balance: 883.39 | Equity: 888.43 | Free Margin: 789.68 | Margin Used: 98.75 | Open PnL: 5.04
+📈 Run performance -> Equity Δ +2.68 (+0.30%) | Balance Δ -0.28
+⚙️ Leverage usage -> Margin 98.75 (11.1% of equity) | Margin level 899.7% | Leverage setting 500x
+📂 Open positions -> XAUUSD+: 2 pos (buy 0.15, sell 0.00, net +0.15, pnl 5.04)
+📘 Position ledger (all symbols):
+   • XAUUSD+ #417837177 BUY 0.04@3857.24→3858.14 (+90 pts) | PnL +3.07 | SL 3845.61 (1253 pts) | TP 3866.23 (809 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-03 01:53:21 | Magic 123456 | Tag MTB17
+   • XAUUSD+ #417841933 BUY 0.11@3857.93→3858.14 (+21 pts) | PnL +1.97 | SL 3845.29 (1285 pts) | TP 3867.13 (899 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-03 02:03:51 | Magic 123456 | Tag MTB17
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: Sydney/Tokyo
+Checking signals at 2025-10-03 01:04:49
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 EURUSD+: Skipping (session priority 2/3 for Sydney/Tokyo)
+📊 USDJPY+: Trading allowed (session priority 5/3 for Sydney/Tokyo)
+USDJPY+ computed ATR(5) = 0.060600
+USDJPY+ Volatility pressure: 0.87 | Candle conviction: 0.50
+📉 USDJPY+ Spread snapshot -> 8.0 pts (0.008000) | Spread/ATR 0.13
+📊 USDJPY+ Market Regime: RANGING
+📈 USDJPY+: no open positions
+💧 USDJPY+ Breakout: Liquidity boosted -> boost to x1.09 (spread/ATR 0.13) | risk x1.11 → x1.21
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 30.0
+💧 USDJPY+ Donchian Channel: Liquidity boosted -> boost to x1.09 (spread/ATR 0.13) | risk x1.17 → x1.28
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 16.0
+💧 USDJPY+ MA Crossover: Liquidity boosted -> boost to x1.09 (spread/ATR 0.13) | risk x1.13 → x1.23
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 13.3
+💧 USDJPY+ Momentum Trend: Liquidity boosted -> boost to x1.09 (spread/ATR 0.13) | risk x1.11 → x1.21
+✅ USDJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: bullish)
+🔥 USDJPY+: High-risk neutral micro override for BUY (score -0.01% within ±0.02%, guard 1.00).
+🎯 USDJPY+ Momentum Trend: Micro momentum aligned -0.01% ≥ 0.02% (soft confirm, override)
+USDJPY+ Momentum Trend Final Signal: buy (regime: 10.0%, performance: 1.00×, adj priority: 50.0, confidence 0.66/0.50, risk base x1.11 → liquidity x1.21 → alpha x1.21 → low-vol x1.21 → guard x1.00, ATR(5)=0.060600, micro -0.01%/0.02% (soft/override))
+💧 USDJPY+ Mean Reversion: Liquidity boosted -> boost to x1.09 (spread/ATR 0.13) | risk x1.23 → x1.34
+🌀 USDJPY+ Mean Reversion: Overriding MTF bias (bullish) in ranging regime for mean reversion signal sell.
+🎯 USDJPY+ Mean Reversion: Micro momentum aligned -0.01% ≤ -0.02% (soft confirm)
+USDJPY+ Mean Reversion Final Signal: sell (regime: 40.0%, performance: 1.00×, adj priority: 2.5, confidence 0.82/0.53, risk base x1.23 → liquidity x1.34 → alpha x1.34 → low-vol x1.34 → guard x1.10, ATR(5)=0.060600, micro -0.01%/-0.02% (soft))
+USDJPY+: executing SELL via Mean Reversion (priority 2.5, confidence 0.82) | comment MRS02
+📉 USDJPY+: Spread snapshot 8.0 pts (0.008000) | Spread/ATR 0.13
+Current account equity: $888.43 (balance: $883.39)
+🎯 USDJPY+: base lot 1.14 using risk multiplier 1.10
+🔗 USDJPY+: Correlation check OK - diversified exposure across correlated groups
+🚫 USDJPY+: Exposure cap blocked new order (USD cap 106612/106612).
+⚠️ USD exposure fully allocated (106612/106612).
+USDJPY+: sell order aborted (USD cap 106612/106612).
+USDJPY+: skipping Momentum Trend buy (conf 0.66, priority 50.0) - beaten by Mean Reversion (conf 0.82, priority 2.5)
+📊 GBPUSD+: Skipping (session priority 1/3 for Sydney/Tokyo)
+📊 GBPJPY+: Trading allowed (session priority 4/3 for Sydney/Tokyo)
+GBPJPY+ computed ATR(5) = 0.071200
+GBPJPY+ Volatility pressure: 0.81 | Candle conviction: 0.50
+📉 GBPJPY+ Spread snapshot -> 12.0 pts (0.012000) | Spread/ATR 0.17
+📊 GBPJPY+ Market Regime: TRENDING
+📈 GBPJPY+: no open positions
+💧 GBPJPY+ Breakout: Liquidity boosted -> boost to x1.02 (spread/ATR 0.17) | risk x1.07 → x1.09
+ℹ️ GBPJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+💧 GBPJPY+ Donchian Channel: Liquidity boosted -> boost to x1.02 (spread/ATR 0.17) | risk x1.00 → x1.02
+ℹ️ GBPJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+💧 GBPJPY+ MA Crossover: Liquidity boosted -> boost to x1.02 (spread/ATR 0.17) | risk x1.11 → x1.13
+ℹ️ GBPJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+💧 GBPJPY+ Momentum Trend: Liquidity boosted -> boost to x1.02 (spread/ATR 0.17) | risk x1.09 → x1.11
+✅ GBPJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: bullish)
+🔥 GBPJPY+: High-risk neutral micro override for BUY (score +0.00% within ±0.02%, guard 1.00).
+🎯 GBPJPY+ Momentum Trend: Micro momentum aligned +0.00% ≥ 0.02% (soft confirm, override)
+GBPJPY+ Momentum Trend Final Signal: buy (regime: 30.0%, performance: 1.00×, adj priority: 16.7, confidence 0.75/0.50, risk base x1.09 → liquidity x1.11 → alpha x1.11 → low-vol x1.11 → guard x1.00, ATR(5)=0.071200, micro +0.00%/0.02% (soft/override))
+💧 GBPJPY+ Mean Reversion: Liquidity boosted -> boost to x1.02 (spread/ATR 0.17) | risk x1.00 → x1.02
+ℹ️ GBPJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+GBPJPY+: executing BUY via Momentum Trend (priority 16.666666666666668, confidence 0.75) | comment MTB17
+📉 GBPJPY+: Spread snapshot 12.0 pts (0.012000) | Spread/ATR 0.17
+Current account equity: $888.43 (balance: $883.39)
+🎯 GBPJPY+: base lot 0.89 using risk multiplier 1.00
+🚫 GBPJPY+: Exposure cap blocked new order (JPY cap 85289/85289).
+⚠️ GBP exposure fully allocated (88132/88132).
+⚠️ JPY exposure fully allocated (85289/85289).
+GBPJPY+: buy order aborted (JPY cap 85289/85289).
+📊 XAUUSD+: Trading allowed (session priority 3/3 for Sydney/Tokyo)
+XAUUSD+ computed ATR(5) = 4.598000
+XAUUSD+ Volatility pressure: 0.68 | Candle conviction: 0.50
+📉 XAUUSD+ Spread snapshot -> 8.0 pts (0.080000) | Spread/ATR 0.02
+📊 XAUUSD+ Market Regime: TRENDING
+📈 XAUUSD+ Open positions (2):
+    • #417837177 BUY 0.04@3857.24→3858.14 (+90 pts) | PnL +3.07 | SL 3845.61 (1253 pts) | TP 3866.23 (809 pts) | Age 0s | Tag MTB17
+    • #417841933 BUY 0.11@3857.93→3858.14 (+21 pts) | PnL +1.97 | SL 3845.29 (1285 pts) | TP 3867.13 (899 pts) | Age 0s | Tag MTB17
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.02 → x1.27
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.00 → x1.25
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.06 → x1.33
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.04 → x1.30
+✅ XAUUSD+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: neutral)
+🎯 XAUUSD+ Momentum Trend: Micro momentum aligned +0.10% ≥ 0.03%
+XAUUSD+ Momentum Trend Final Signal: buy (regime: 30.0%, performance: 1.00×, adj priority: 16.7, confidence 0.86/0.54, risk base x1.04 → liquidity x1.30 → alpha x1.30 → low-vol x1.30 → guard x1.12, ATR(5)=4.598000, micro +0.10%/0.03%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.00 → x1.25
+✅ XAUUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 XAUUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.10% vs required ≤ -0.03%)
+XAUUSD+: pyramiding BUY via Momentum Trend (priority 16.666666666666668, confidence 0.86) | scaling a winner (confidence +0.01), stack 2/4 | comment MTB17
+📉 XAUUSD+: Spread snapshot 8.0 pts (0.080000) | Spread/ATR 0.02
+Current account equity: $888.43 (balance: $883.39)
+🎯 XAUUSD+: base lot 0.14 using risk multiplier 1.38
+🚫 XAUUSD+: Exposure cap blocked new order (XAU cap 56860/56860).
+⚠️ XAU exposure fully allocated (57872/56860).
+XAUUSD+: pyramid buy aborted (XAU cap 56860/56860).
+📒 Scan #2 summary -> symbols processed 5/5 | open-symbols 1 | candidates 4 | executed 0 | blocked 3 | pyramids 0 | confidence-filtered 0 | micro-filtered 1 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 10 | ATR-missing 0 | micro-overrides 2 | micro-confirms 4
+💧 Liquidity gating -> boosts 15 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+⏱️ Next scan in 60 seconds...
+
+====================================================================
+🔁 Scan #3 | Local 2025-10-03 01:05:49 | UTC 23:05:49
+💼 Account snapshot -> Balance: 883.39 | Equity: 887.28 | Free Margin: 788.53 | Margin Used: 98.75 | Open PnL: 3.89
+📈 Run performance -> Equity Δ +1.53 (+0.17%) | Balance Δ -0.28
+⚙️ Leverage usage -> Margin 98.75 (11.1% of equity) | Margin level 898.5% | Leverage setting 500x
+📂 Open positions -> XAUUSD+: 2 pos (buy 0.15, sell 0.00, net +0.15, pnl 3.89)
+📘 Position ledger (all symbols):
+   • XAUUSD+ #417837177 BUY 0.04@3857.24→3858.05 (+81 pts) | PnL +2.76 | SL 3845.61 (1244 pts) | TP 3866.23 (818 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-03 01:53:21 | Magic 123456 | Tag MTB17
+   • XAUUSD+ #417841933 BUY 0.11@3857.93→3858.05 (+12 pts) | PnL +1.13 | SL 3845.29 (1276 pts) | TP 3867.13 (908 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-03 02:03:51 | Magic 123456 | Tag MTB17
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: Sydney/Tokyo
+Checking signals at 2025-10-03 01:05:49
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 EURUSD+: Skipping (session priority 2/3 for Sydney/Tokyo)
+📊 USDJPY+: Trading allowed (session priority 5/3 for Sydney/Tokyo)
+USDJPY+ computed ATR(5) = 0.060600
+USDJPY+ Volatility pressure: 0.87 | Candle conviction: 0.50
+📉 USDJPY+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 USDJPY+ Market Regime: RANGING
+📈 USDJPY+: no open positions
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 30.0
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 16.0
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 13.3
+✅ USDJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: bullish)
+🔥 USDJPY+: High-risk neutral micro override for BUY (score -0.00% within ±0.02%, guard 1.00).
+🎯 USDJPY+ Momentum Trend: Micro momentum aligned -0.00% ≥ 0.02% (soft confirm, override)
+USDJPY+ Momentum Trend Final Signal: buy (regime: 10.0%, performance: 1.00×, adj priority: 50.0, confidence 0.66/0.50, risk base x1.11 → liquidity x1.11 → alpha x1.11 → low-vol x1.11 → guard x1.00, ATR(5)=0.060600, micro -0.00%/0.02% (soft/override))
+🌀 USDJPY+ Mean Reversion: Overriding MTF bias (bullish) in ranging regime for mean reversion signal sell.
+🔥 USDJPY+: High-risk neutral micro override for SELL (score -0.00% within ±0.02%, guard 1.00).
+🎯 USDJPY+ Mean Reversion: Micro momentum aligned -0.00% ≤ -0.02% (soft confirm, override)
+USDJPY+ Mean Reversion Final Signal: sell (regime: 40.0%, performance: 1.00×, adj priority: 2.5, confidence 0.82/0.50, risk base x1.23 → liquidity x1.23 → alpha x1.23 → low-vol x1.23 → guard x1.01, ATR(5)=0.060600, micro -0.00%/-0.02% (soft/override))
+USDJPY+: executing SELL via Mean Reversion (priority 2.5, confidence 0.82) | comment MRS02
+📉 USDJPY+: Spread snapshot 0.0 pts (0.000000) | Spread/ATR 0.00
+Current account equity: $887.28 (balance: $883.39)
+🎯 USDJPY+: base lot 1.05 using risk multiplier 1.01
+🔗 USDJPY+: Correlation check OK - diversified exposure across correlated groups
+🚫 USDJPY+: Exposure cap blocked new order (USD cap 106474/106474).
+⚠️ USD exposure fully allocated (106474/106474).
+USDJPY+: sell order aborted (USD cap 106474/106474).
+USDJPY+: skipping Momentum Trend buy (conf 0.66, priority 50.0) - beaten by Mean Reversion (conf 0.82, priority 2.5)
+📊 GBPUSD+: Skipping (session priority 1/3 for Sydney/Tokyo)
+📊 GBPJPY+: Trading allowed (session priority 4/3 for Sydney/Tokyo)
+GBPJPY+ computed ATR(5) = 0.071200
+GBPJPY+ Volatility pressure: 0.81 | Candle conviction: 0.50
+📉 GBPJPY+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 GBPJPY+ Market Regime: TRENDING
+📈 GBPJPY+: no open positions
+ℹ️ GBPJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ GBPJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ GBPJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+✅ GBPJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: bullish)
+⚡ GBPJPY+: Aggressive micro override for BUY (aligned +0.00% within tolerance ±0.01%, required ≥ 0.00%).
+🎯 GBPJPY+ Momentum Trend: Micro momentum aligned +0.00% ≥ 0.02% (soft confirm, override)
+GBPJPY+ Momentum Trend Final Signal: buy (regime: 30.0%, performance: 1.00×, adj priority: 16.7, confidence 0.75/0.50, risk base x1.09 → liquidity x1.09 → alpha x1.09 → low-vol x1.09 → guard x1.00, ATR(5)=0.071200, micro +0.00%/0.02% (soft/override))
+ℹ️ GBPJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+GBPJPY+: executing BUY via Momentum Trend (priority 16.666666666666668, confidence 0.75) | comment MTB17
+📉 GBPJPY+: Spread snapshot 0.0 pts (0.000000) | Spread/ATR 0.00
+Current account equity: $887.28 (balance: $883.39)
+🎯 GBPJPY+: base lot 0.89 using risk multiplier 1.00
+🚫 GBPJPY+: Exposure cap blocked new order (JPY cap 85179/85179).
+⚠️ GBP exposure fully allocated (88018/88018).
+⚠️ JPY exposure fully allocated (85179/85179).
+GBPJPY+: buy order aborted (JPY cap 85179/85179).
+📊 XAUUSD+: Trading allowed (session priority 3/3 for Sydney/Tokyo)
+XAUUSD+ computed ATR(5) = 4.598000
+XAUUSD+ Volatility pressure: 0.68 | Candle conviction: 0.50
+📉 XAUUSD+ Spread snapshot -> 7.0 pts (0.070000) | Spread/ATR 0.02
+📊 XAUUSD+ Market Regime: TRENDING
+📈 XAUUSD+ Open positions (2):
+    • #417837177 BUY 0.04@3857.24→3858.05 (+81 pts) | PnL +2.76 | SL 3845.61 (1244 pts) | TP 3866.23 (818 pts) | Age 0s | Tag MTB17
+    • #417841933 BUY 0.11@3857.93→3858.05 (+12 pts) | PnL +1.13 | SL 3845.29 (1276 pts) | TP 3867.13 (908 pts) | Age 0s | Tag MTB17
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.02 → x1.27
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.00 → x1.25
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.06 → x1.33
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.04 → x1.30
+✅ XAUUSD+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: neutral)
+🎯 XAUUSD+ Momentum Trend: Micro momentum aligned +0.02% ≥ 0.03% (soft confirm)
+XAUUSD+ Momentum Trend Final Signal: buy (regime: 30.0%, performance: 1.00×, adj priority: 16.7, confidence 0.72/0.53, risk base x1.04 → liquidity x1.30 → alpha x1.30 → low-vol x1.30 → guard x1.00, ATR(5)=4.598000, micro +0.02%/0.03% (soft))
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.00 → x1.25
+✅ XAUUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🔥 XAUUSD+: High-risk neutral micro override for SELL (score +0.02% within ±0.03%, guard 1.00).
+🎯 XAUUSD+ Mean Reversion: Micro momentum aligned +0.02% ≤ -0.03% (soft confirm, override)
+XAUUSD+ Mean Reversion Final Signal: sell (regime: 5.0%, performance: 1.00×, adj priority: 20.0, confidence 0.58/0.50, risk base x1.00 → liquidity x1.25 → alpha x1.25 → low-vol x1.25 → guard x1.00, ATR(5)=4.598000, micro +0.02%/-0.03% (soft/override))
+XAUUSD+: already in buy position, ignoring Momentum Trend (priority 16.666666666666668)
+XAUUSD+: skipping Mean Reversion sell (conf 0.58, priority 20.0) - beaten by Momentum Trend (conf 0.72, priority 16.666666666666668)
+📒 Scan #3 summary -> symbols processed 5/5 | open-symbols 1 | candidates 5 | executed 0 | blocked 2 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 1 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 10 | ATR-missing 0 | micro-overrides 4 | micro-confirms 5
+💧 Liquidity gating -> boosts 5 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+⏱️ Next scan in 60 seconds...
+
+🛑 Manual stop requested — wrapping up after scan #3.
+💼 Final account snapshot -> Balance: 883.39 | Equity: 888.56 | Free Margin: 789.81 | Margin Used: 98.75 | Margin Level: 899.8% | Leverage: 500x | Open PnL: 5.17
+📈 Final run performance -> Equity Δ +2.81 (+0.32%) | Balance Δ -0.28
+🧭 Equity governor status -> baseline 886.22, deviation +0.12%, factor 100%, state clear
+📊 Dynamic VaR status -> VaR 0.00% (target 2.00%), factor 100%, samples 3, state calibrating
+📂 Final open positions -> XAUUSD+: 2 pos (buy 0.15, sell 0.00, net +0.15, pnl 5.17)
+📘 Final position ledger:
+   • XAUUSD+ #417837177 BUY 0.04@3857.24→3858.15 (+91 pts) | PnL +3.11 | SL 3845.61 (1254 pts) | TP 3866.23 (808 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-03 01:53:21 | Magic 123456 | Tag MTB17
+   • XAUUSD+ #417841933 BUY 0.11@3857.93→3858.15 (+22 pts) | PnL +2.06 | SL 3845.29 (1286 pts) | TP 3867.13 (898 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-03 02:03:51 | Magic 123456 | Tag MTB17

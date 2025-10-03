@@ -37,6 +37,13 @@
 - **Easy toggle**: `ENABLE_NEWS_FILTERING = False` (disabled per user request)
 - **Preserved for future**: Full implementation available when needed
 
+### ✅ **6. Dynamic Risk Scaling & Telemetry Backbone** 📡
+- **EWMA Value-at-Risk governor**: Tracks rolling return distribution with configurable lookback, tail probability, and smoothing tuned for live cadence.
+- **Auto risk throttling & boosts**: VaR factor blends with drawdown, soft guard, margin, and equity governor multipliers before sizing every trade.
+- **Stateful between runs**: VaR buffers persist in `risk_guard_state.json`, reset automatically on preset swaps or guard resets.
+- **JSONL telemetry stream**: Every guard snapshot, preset change, reset, and shutdown summary is appended to `logs/telemetry_live.jsonl` for dashboards and alerting.
+- **Guard visibility upgrades**: Console summaries now show per-cycle factors (risk/soft/margin/equity/VaR) so operators can trace why sizing changed.
+
 ### 🔧 **Key Configuration Settings**
 
 ```python
@@ -51,6 +58,22 @@ PARTIAL_TAKE_PROFIT = 0.25   # Close 25% of position
 # Performance Tracking
 PERFORMANCE_LOOKBACK_DAYS = 30
 MIN_TRADES_FOR_ADAPTATION = 10
+
+# Dynamic VaR Governor
+DYNAMIC_VAR_ENABLED = True
+DYNAMIC_VAR_LOOKBACK = 160
+DYNAMIC_VAR_TAIL_PROB = 0.01
+DYNAMIC_VAR_TARGET = 0.015
+DYNAMIC_VAR_MIN_FACTOR = 0.40
+DYNAMIC_VAR_MAX_FACTOR = 1.45
+DYNAMIC_VAR_SMOOTHING = 0.2
+DYNAMIC_VAR_SAMPLE_FLOOR = 40
+DYNAMIC_VAR_HYSTERESIS = 0.005
+
+# Telemetry Sink
+TELEMETRY_ENABLED = True
+TELEMETRY_FILE = LOG_DIR / "telemetry_live.jsonl"
+TELEMETRY_BUFFER_FLUSH = 1
 ```
 
 ### 🎯 **Expected Performance Improvements**
@@ -71,13 +94,15 @@ MIN_TRADES_FOR_ADAPTATION = 10
 
 ### 📊 **Monitoring & Outputs**
 
-The bot now provides detailed logging:
+The bot now provides detailed logging **and a JSONL telemetry trail**:
 ```
 📊 EURUSD Market Regime: TRENDING
 ✅ EURUSD MA Crossover: Signal buy confirmed by MTF (H1 bias: bullish)
 EURUSD MA Crossover Final Signal: buy (regime: 35.0%, performance: 1.2x, adj priority: 2.4)
 💰 EURUSD Moving to breakeven (profit: 1.1x ATR)
 📈 Updated performance for ma_crossover on EURUSD: PnL=45.23, WR=65.0%, Trades=15
+🧮 Guard factors -> risk 0.82, soft 0.90, margin 1.00, equity 0.95, VaR 0.88, combined 0.62
+📡 Telemetry event appended: guard_snapshot (scan=178, status="soft")
 ```
 
 ### 🚀 **Next Steps for Maximum Profitability**

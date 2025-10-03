@@ -1,13 +1,16 @@
 {
-  "day": "2025-10-01",
-  "daily_start_equity": 168.3,
-  "daily_peak_equity": 168.3,
-  "daily_drawdown": 0.14046345811051703,
-  "daily_blocked": true,
-  "week_start": "2025-09-29",
-  "weekly_start_equity": 168.3,
-  "weekly_peak_equity": 168.3,
-  "weekly_drawdown": 0.14046345811051703,
-  "weekly_blocked": false,
-  "equity": 144.66
+  "dynamic_var_state": {
+    "initialized": true,
+    "last_equity": 901.8,
+    "var": 0.0,
+    "factor": 1.0,
+    "status": "calibrating",
+    "sample_size": 3,
+    "last_update": "2025-10-02T23:55:40.919114+00:00",
+    "returns": [
+      0.0,
+      -0.00460182513064503,
+      0.009470078581503037
+    ]
+  }
 }

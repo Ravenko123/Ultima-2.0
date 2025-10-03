@@ -1,0 +1,1099 @@
+📝 Logging live run to D:\RAVBOTGITHUB\ULTIMA2.0\Ultima-2.0\logs\live_run_20251002_210556.txt (retaining last 30 logs)
+📊 No existing performance file found, starting fresh tracking
+📨 Telegram remote control ready for authorized ID(s): 6401257809
+
+====================================================================
+🔁 Scan #1 | Local 2025-10-02 21:05:56 | UTC 19:05:56
+💼 Account snapshot -> Balance: 878.37 | Equity: 874.75 | Free Margin: 858.75 | Margin Used: 16.00 | Open PnL: -3.62
+📂 Open positions -> EURUSD+: 1 pos (buy 0.00, sell 0.08, net -0.08, pnl -3.62)
+📘 Position ledger (all symbols):
+   • EURUSD+ #417643773 SELL 0.08@1.17184→1.17237 (-53 pts) | PnL -3.62 | SL 1.17564 (327 pts) | TP 1.16908 (329 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-02 20:53:15 | Magic 123456 | Tag MTS20
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: New York
+Checking signals at 2025-10-02 21:05:56
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, combined 1.00
+📊 EURUSD+: Trading allowed (session priority 4/3 for New York)
+EURUSD+ computed ATR(5) = 0.001146
+EURUSD+ Volatility pressure: 1.13 | Candle conviction: 0.50
+📉 EURUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 EURUSD+ Market Regime: VOLATILE
+📈 EURUSD+ Open position -> #417643773 SELL 0.08@1.17184→1.17237 (-53 pts) | PnL -3.62 | SL 1.17564 (327 pts) | TP 1.16908 (329 pts) | Age 0s | Tag MTS20
+ℹ️ EURUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+ℹ️ EURUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+ℹ️ EURUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+✅ EURUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 EURUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.03% vs required ≤ -0.04%)
+ℹ️ EURUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 USDJPY+: Trading allowed (session priority 3/3 for New York)
+USDJPY+ computed ATR(5) = 0.116600
+USDJPY+ Volatility pressure: 1.00 | Candle conviction: 0.50
+📉 USDJPY+ Spread snapshot -> 3.0 pts (0.003000) | Spread/ATR 0.03
+📊 USDJPY+ Market Regime: TRENDING
+📈 USDJPY+: no open positions
+💧 USDJPY+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.02 → x1.27
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+💧 USDJPY+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.00 → x1.25
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+💧 USDJPY+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.06 → x1.33
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+💧 USDJPY+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.04 → x1.30
+✅ USDJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: neutral)
+🎯 USDJPY+ Momentum Trend: Signal buy rejected by micro momentum (+0.00% vs required ≥ 0.03%)
+💧 USDJPY+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.00 → x1.25
+ℹ️ USDJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 GBPUSD+: Trading allowed (session priority 4/3 for New York)
+GBPUSD+ computed ATR(5) = 0.001220
+GBPUSD+ Volatility pressure: 1.13 | Candle conviction: 0.75
+📉 GBPUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 GBPUSD+ Market Regime: TRENDING
+📈 GBPUSD+: no open positions
+ℹ️ GBPUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ GBPUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ GBPUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+ℹ️ GBPUSD+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+✅ GBPUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 GBPUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.02% vs required ≤ -0.04%)
+📊 GBPJPY+: Skipping (session priority 2/3 for New York)
+📊 XAUUSD+: Trading allowed (session priority 4/3 for New York)
+XAUUSD+ computed ATR(5) = 13.102000
+XAUUSD+ Volatility pressure: 1.31 | Candle conviction: 0.56
+📉 XAUUSD+ Spread snapshot -> 7.0 pts (0.070000) | Spread/ATR 0.01
+📊 XAUUSD+ Market Regime: VOLATILE
+📈 XAUUSD+: no open positions
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+✅ XAUUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 XAUUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.20% vs required ≤ -0.16%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+ℹ️ XAUUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📒 Scan #1 summary -> symbols processed 5/5 | open-symbols 1 | candidates 0 | executed 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 4 | position-blocked 0 | duplicates 0 | guard-blocked 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 16 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 10 | throttles 0 | blocks 0
+⚡ Alpha surge -> detected 0 | scaled 0
+⏱️ Next scan in 60 seconds...
+📨 Telegram command /risk from 6401257809
+🎚️ Risk preset changed to HIGH — Aggressive compounding
+
+====================================================================
+🔁 Scan #2 | Local 2025-10-02 21:06:56 | UTC 19:06:56
+💼 Account snapshot -> Balance: 878.37 | Equity: 873.53 | Free Margin: 857.53 | Margin Used: 16.00 | Open PnL: -4.84
+📈 Run performance -> Equity Δ -1.22 (-0.14%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 16.00 (1.8% of equity) | Margin level 5459.6% | Leverage setting 500x
+📂 Open positions -> EURUSD+: 1 pos (buy 0.00, sell 0.08, net -0.08, pnl -4.84)
+📘 Position ledger (all symbols):
+   • EURUSD+ #417643773 SELL 0.08@1.17184→1.17255 (-71 pts) | PnL -4.84 | SL 1.17564 (309 pts) | TP 1.16908 (347 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-02 20:53:15 | Magic 123456 | Tag MTS20
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: New York
+Checking signals at 2025-10-02 21:06:56
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, combined 1.00
+📊 EURUSD+: Trading allowed (session priority 4/3 for New York)
+EURUSD+ computed ATR(5) = 0.001146
+EURUSD+ Volatility pressure: 1.13 | Candle conviction: 0.50
+📉 EURUSD+ Spread snapshot -> 1.0 pts (0.000010) | Spread/ATR 0.01
+📊 EURUSD+ Market Regime: VOLATILE
+📈 EURUSD+ Open position -> #417643773 SELL 0.08@1.17184→1.17255 (-71 pts) | PnL -4.84 | SL 1.17564 (309 pts) | TP 1.16908 (347 pts) | Age 0s | Tag MTS20
+💧 EURUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+ℹ️ EURUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 EURUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+ℹ️ EURUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 EURUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+ℹ️ EURUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 EURUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+✅ EURUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 EURUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.05% vs required ≤ -0.02%)
+💧 EURUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+ℹ️ EURUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 USDJPY+: Trading allowed (session priority 3/3 for New York)
+USDJPY+ computed ATR(5) = 0.116600
+USDJPY+ Volatility pressure: 1.00 | Candle conviction: 0.50
+📉 USDJPY+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 USDJPY+ Market Regime: TRENDING
+📈 USDJPY+: no open positions
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+✅ USDJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: neutral)
+🎯 USDJPY+ Momentum Trend: Signal buy rejected by micro momentum (-0.00% vs required ≥ 0.02%)
+ℹ️ USDJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 GBPUSD+: Trading allowed (session priority 4/3 for New York)
+GBPUSD+ computed ATR(5) = 0.001220
+GBPUSD+ Volatility pressure: 1.13 | Candle conviction: 0.75
+📉 GBPUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 GBPUSD+ Market Regime: TRENDING
+📈 GBPUSD+: no open positions
+ℹ️ GBPUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ GBPUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ GBPUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+ℹ️ GBPUSD+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+✅ GBPUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 GBPUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.02% vs required ≤ -0.02%)
+📊 GBPJPY+: Skipping (session priority 2/3 for New York)
+📊 XAUUSD+: Trading allowed (session priority 4/3 for New York)
+XAUUSD+ computed ATR(5) = 13.102000
+XAUUSD+ Volatility pressure: 1.31 | Candle conviction: 0.56
+📉 XAUUSD+ Spread snapshot -> 7.0 pts (0.070000) | Spread/ATR 0.01
+📊 XAUUSD+ Market Regime: VOLATILE
+📈 XAUUSD+: no open positions
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+✅ XAUUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 XAUUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.26% vs required ≤ -0.10%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+ℹ️ XAUUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📒 Scan #2 summary -> symbols processed 5/5 | open-symbols 1 | candidates 0 | executed 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 4 | position-blocked 0 | duplicates 0 | guard-blocked 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 16 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 10 | throttles 0 | blocks 0
+⚡ Alpha surge -> detected 0 | scaled 0
+⏱️ Next scan in 60 seconds...
+
+====================================================================
+🔁 Scan #3 | Local 2025-10-02 21:07:56 | UTC 19:07:56
+💼 Account snapshot -> Balance: 878.37 | Equity: 873.93 | Free Margin: 857.93 | Margin Used: 16.00 | Open PnL: -4.44
+📈 Run performance -> Equity Δ -0.82 (-0.09%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 16.00 (1.8% of equity) | Margin level 5462.1% | Leverage setting 500x
+📂 Open positions -> EURUSD+: 1 pos (buy 0.00, sell 0.08, net -0.08, pnl -4.44)
+📘 Position ledger (all symbols):
+   • EURUSD+ #417643773 SELL 0.08@1.17184→1.17249 (-65 pts) | PnL -4.44 | SL 1.17564 (315 pts) | TP 1.16908 (341 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-02 20:53:15 | Magic 123456 | Tag MTS20
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: New York
+Checking signals at 2025-10-02 21:07:56
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, combined 1.00
+📊 EURUSD+: Trading allowed (session priority 4/3 for New York)
+EURUSD+ computed ATR(5) = 0.001146
+EURUSD+ Volatility pressure: 1.13 | Candle conviction: 0.50
+📉 EURUSD+ Spread snapshot -> 1.0 pts (0.000010) | Spread/ATR 0.01
+📊 EURUSD+ Market Regime: VOLATILE
+📈 EURUSD+ Open position -> #417643773 SELL 0.08@1.17184→1.17249 (-65 pts) | PnL -4.44 | SL 1.17564 (315 pts) | TP 1.16908 (341 pts) | Age 0s | Tag MTS20
+💧 EURUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+ℹ️ EURUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 EURUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+ℹ️ EURUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 EURUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+ℹ️ EURUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 EURUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+✅ EURUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 EURUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.04% vs required ≤ -0.03%)
+💧 EURUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+ℹ️ EURUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 USDJPY+: Trading allowed (session priority 3/3 for New York)
+USDJPY+ computed ATR(5) = 0.116600
+USDJPY+ Volatility pressure: 1.00 | Candle conviction: 0.50
+📉 USDJPY+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 USDJPY+ Market Regime: TRENDING
+📈 USDJPY+: no open positions
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+✅ USDJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: neutral)
+🎯 USDJPY+ Momentum Trend: Signal buy rejected by micro momentum (+0.00% vs required ≥ 0.02%)
+ℹ️ USDJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 GBPUSD+: Trading allowed (session priority 4/3 for New York)
+GBPUSD+ computed ATR(5) = 0.001220
+GBPUSD+ Volatility pressure: 1.13 | Candle conviction: 0.75
+📉 GBPUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 GBPUSD+ Market Regime: TRENDING
+📈 GBPUSD+: no open positions
+ℹ️ GBPUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ GBPUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ GBPUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+ℹ️ GBPUSD+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+✅ GBPUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 GBPUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.03% vs required ≤ -0.02%)
+📊 GBPJPY+: Skipping (session priority 2/3 for New York)
+📊 XAUUSD+: Trading allowed (session priority 4/3 for New York)
+XAUUSD+ computed ATR(5) = 13.102000
+XAUUSD+ Volatility pressure: 1.31 | Candle conviction: 0.56
+📉 XAUUSD+ Spread snapshot -> 8.0 pts (0.080000) | Spread/ATR 0.01
+📊 XAUUSD+ Market Regime: VOLATILE
+📈 XAUUSD+: no open positions
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+✅ XAUUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 XAUUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.25% vs required ≤ -0.10%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+ℹ️ XAUUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📒 Scan #3 summary -> symbols processed 5/5 | open-symbols 1 | candidates 0 | executed 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 4 | position-blocked 0 | duplicates 0 | guard-blocked 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 16 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 10 | throttles 0 | blocks 0
+⚡ Alpha surge -> detected 0 | scaled 0
+⏱️ Next scan in 60 seconds...
+
+====================================================================
+🔁 Scan #4 | Local 2025-10-02 21:08:57 | UTC 19:08:57
+💼 Account snapshot -> Balance: 878.37 | Equity: 873.66 | Free Margin: 857.66 | Margin Used: 16.00 | Open PnL: -4.71
+📈 Run performance -> Equity Δ -1.09 (-0.12%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 16.00 (1.8% of equity) | Margin level 5460.4% | Leverage setting 500x
+📂 Open positions -> EURUSD+: 1 pos (buy 0.00, sell 0.08, net -0.08, pnl -4.71)
+📘 Position ledger (all symbols):
+   • EURUSD+ #417643773 SELL 0.08@1.17184→1.17253 (-69 pts) | PnL -4.71 | SL 1.17564 (311 pts) | TP 1.16908 (345 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-02 20:53:15 | Magic 123456 | Tag MTS20
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: New York
+Checking signals at 2025-10-02 21:08:57
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, combined 1.00
+📊 EURUSD+: Trading allowed (session priority 4/3 for New York)
+EURUSD+ computed ATR(5) = 0.001146
+EURUSD+ Volatility pressure: 1.13 | Candle conviction: 0.50
+📉 EURUSD+ Spread snapshot -> 2.0 pts (0.000020) | Spread/ATR 0.02
+📊 EURUSD+ Market Regime: VOLATILE
+📈 EURUSD+ Open position -> #417643773 SELL 0.08@1.17184→1.17253 (-69 pts) | PnL -4.71 | SL 1.17564 (311 pts) | TP 1.16908 (345 pts) | Age 0s | Tag MTS20
+💧 EURUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ EURUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 EURUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.03 → x1.29
+ℹ️ EURUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 EURUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.05 → x1.31
+ℹ️ EURUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 EURUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.07 → x1.34
+✅ EURUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 EURUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.04% vs required ≤ -0.02%)
+💧 EURUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.00 → x1.25
+ℹ️ EURUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 USDJPY+: Trading allowed (session priority 3/3 for New York)
+USDJPY+ computed ATR(5) = 0.116600
+USDJPY+ Volatility pressure: 1.00 | Candle conviction: 0.50
+📉 USDJPY+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 USDJPY+ Market Regime: TRENDING
+📈 USDJPY+: no open positions
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+✅ USDJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: neutral)
+🎯 USDJPY+ Momentum Trend: Signal buy rejected by micro momentum (-0.01% vs required ≥ 0.02%)
+ℹ️ USDJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 GBPUSD+: Trading allowed (session priority 4/3 for New York)
+GBPUSD+ computed ATR(5) = 0.001220
+GBPUSD+ Volatility pressure: 1.13 | Candle conviction: 0.75
+📉 GBPUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 GBPUSD+ Market Regime: TRENDING
+📈 GBPUSD+: no open positions
+ℹ️ GBPUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ GBPUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ GBPUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+ℹ️ GBPUSD+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+✅ GBPUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 GBPUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.03% vs required ≤ -0.02%)
+📊 GBPJPY+: Skipping (session priority 2/3 for New York)
+📊 XAUUSD+: Trading allowed (session priority 4/3 for New York)
+XAUUSD+ computed ATR(5) = 13.102000
+XAUUSD+ Volatility pressure: 1.31 | Candle conviction: 0.56
+📉 XAUUSD+ Spread snapshot -> 7.0 pts (0.070000) | Spread/ATR 0.01
+📊 XAUUSD+ Market Regime: VOLATILE
+📈 XAUUSD+: no open positions
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+✅ XAUUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 XAUUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.25% vs required ≤ -0.10%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+ℹ️ XAUUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📒 Scan #4 summary -> symbols processed 5/5 | open-symbols 1 | candidates 0 | executed 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 4 | position-blocked 0 | duplicates 0 | guard-blocked 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 16 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 10 | throttles 0 | blocks 0
+⚡ Alpha surge -> detected 0 | scaled 0
+⏱️ Next scan in 60 seconds...
+
+====================================================================
+🔁 Scan #5 | Local 2025-10-02 21:09:57 | UTC 19:09:57
+💼 Account snapshot -> Balance: 878.37 | Equity: 873.12 | Free Margin: 857.12 | Margin Used: 16.00 | Open PnL: -5.25
+📈 Run performance -> Equity Δ -1.63 (-0.19%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 16.00 (1.8% of equity) | Margin level 5457.0% | Leverage setting 500x
+📂 Open positions -> EURUSD+: 1 pos (buy 0.00, sell 0.08, net -0.08, pnl -5.25)
+📘 Position ledger (all symbols):
+   • EURUSD+ #417643773 SELL 0.08@1.17184→1.17261 (-77 pts) | PnL -5.25 | SL 1.17564 (303 pts) | TP 1.16908 (353 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-02 20:53:15 | Magic 123456 | Tag MTS20
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: New York
+Checking signals at 2025-10-02 21:09:57
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, combined 1.00
+📊 EURUSD+: Trading allowed (session priority 4/3 for New York)
+EURUSD+ computed ATR(5) = 0.001146
+EURUSD+ Volatility pressure: 1.13 | Candle conviction: 0.50
+📉 EURUSD+ Spread snapshot -> 3.0 pts (0.000030) | Spread/ATR 0.03
+📊 EURUSD+ Market Regime: VOLATILE
+📈 EURUSD+ Open position -> #417643773 SELL 0.08@1.17184→1.17261 (-77 pts) | PnL -5.25 | SL 1.17564 (303 pts) | TP 1.16908 (353 pts) | Age 0s | Tag MTS20
+💧 EURUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.11 → x1.39
+ℹ️ EURUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 EURUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.03 → x1.29
+ℹ️ EURUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 EURUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.05 → x1.31
+ℹ️ EURUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 EURUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.07 → x1.34
+✅ EURUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 EURUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.05% vs required ≤ -0.02%)
+💧 EURUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.03) | risk x1.00 → x1.25
+ℹ️ EURUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 USDJPY+: Trading allowed (session priority 3/3 for New York)
+USDJPY+ computed ATR(5) = 0.116600
+USDJPY+ Volatility pressure: 1.00 | Candle conviction: 0.50
+📉 USDJPY+ Spread snapshot -> 8.0 pts (0.008000) | Spread/ATR 0.07
+📊 USDJPY+ Market Regime: TRENDING
+📈 USDJPY+: no open positions
+💧 USDJPY+ Breakout: Liquidity boosted -> boost to x1.22 (spread/ATR 0.07) | risk x1.02 → x1.24
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+💧 USDJPY+ Donchian Channel: Liquidity boosted -> boost to x1.22 (spread/ATR 0.07) | risk x1.00 → x1.22
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+💧 USDJPY+ MA Crossover: Liquidity boosted -> boost to x1.22 (spread/ATR 0.07) | risk x1.06 → x1.29
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+💧 USDJPY+ Momentum Trend: Liquidity boosted -> boost to x1.22 (spread/ATR 0.07) | risk x1.04 → x1.27
+✅ USDJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: neutral)
+🎯 USDJPY+ Momentum Trend: Signal buy rejected by micro momentum (-0.02% vs required ≥ 0.02%)
+💧 USDJPY+ Mean Reversion: Liquidity boosted -> boost to x1.22 (spread/ATR 0.07) | risk x1.00 → x1.22
+ℹ️ USDJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 GBPUSD+: Trading allowed (session priority 4/3 for New York)
+GBPUSD+ computed ATR(5) = 0.001220
+GBPUSD+ Volatility pressure: 1.13 | Candle conviction: 0.75
+📉 GBPUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 GBPUSD+ Market Regime: TRENDING
+📈 GBPUSD+: no open positions
+ℹ️ GBPUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ GBPUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ GBPUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+ℹ️ GBPUSD+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+✅ GBPUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 GBPUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.03% vs required ≤ -0.02%)
+📊 GBPJPY+: Skipping (session priority 2/3 for New York)
+📊 XAUUSD+: Trading allowed (session priority 4/3 for New York)
+XAUUSD+ computed ATR(5) = 13.102000
+XAUUSD+ Volatility pressure: 1.31 | Candle conviction: 0.56
+📉 XAUUSD+ Spread snapshot -> 8.0 pts (0.080000) | Spread/ATR 0.01
+📊 XAUUSD+ Market Regime: VOLATILE
+📈 XAUUSD+: no open positions
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+✅ XAUUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 XAUUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.22% vs required ≤ -0.10%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+ℹ️ XAUUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📒 Scan #5 summary -> symbols processed 5/5 | open-symbols 1 | candidates 0 | executed 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 4 | position-blocked 0 | duplicates 0 | guard-blocked 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 16 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 15 | throttles 0 | blocks 0
+⚡ Alpha surge -> detected 0 | scaled 0
+⏱️ Next scan in 60 seconds...
+
+====================================================================
+🔁 Scan #6 | Local 2025-10-02 21:10:57 | UTC 19:10:57
+💼 Account snapshot -> Balance: 878.37 | Equity: 873.87 | Free Margin: 857.87 | Margin Used: 16.00 | Open PnL: -4.50
+📈 Run performance -> Equity Δ -0.88 (-0.10%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 16.00 (1.8% of equity) | Margin level 5461.7% | Leverage setting 500x
+📂 Open positions -> EURUSD+: 1 pos (buy 0.00, sell 0.08, net -0.08, pnl -4.50)
+📘 Position ledger (all symbols):
+   • EURUSD+ #417643773 SELL 0.08@1.17184→1.17250 (-66 pts) | PnL -4.50 | SL 1.17564 (314 pts) | TP 1.16908 (342 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-02 20:53:15 | Magic 123456 | Tag MTS20
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: New York
+Checking signals at 2025-10-02 21:10:57
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, combined 1.00
+📊 EURUSD+: Trading allowed (session priority 4/3 for New York)
+EURUSD+ computed ATR(5) = 0.001146
+EURUSD+ Volatility pressure: 1.13 | Candle conviction: 0.50
+📉 EURUSD+ Spread snapshot -> 2.0 pts (0.000020) | Spread/ATR 0.02
+📊 EURUSD+ Market Regime: VOLATILE
+📈 EURUSD+ Open position -> #417643773 SELL 0.08@1.17184→1.17250 (-66 pts) | PnL -4.50 | SL 1.17564 (314 pts) | TP 1.16908 (342 pts) | Age 0s | Tag MTS20
+💧 EURUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ EURUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 EURUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.03 → x1.29
+ℹ️ EURUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 EURUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.05 → x1.31
+ℹ️ EURUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 EURUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.07 → x1.34
+✅ EURUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 EURUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.05% vs required ≤ -0.02%)
+💧 EURUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.00 → x1.25
+ℹ️ EURUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 USDJPY+: Trading allowed (session priority 3/3 for New York)
+USDJPY+ computed ATR(5) = 0.116600
+USDJPY+ Volatility pressure: 1.00 | Candle conviction: 0.50
+📉 USDJPY+ Spread snapshot -> 7.0 pts (0.007000) | Spread/ATR 0.06
+📊 USDJPY+ Market Regime: TRENDING
+📈 USDJPY+: no open positions
+💧 USDJPY+ Breakout: Liquidity boosted -> boost to x1.23 (spread/ATR 0.06) | risk x1.02 → x1.25
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+💧 USDJPY+ Donchian Channel: Liquidity boosted -> boost to x1.23 (spread/ATR 0.06) | risk x1.00 → x1.23
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+💧 USDJPY+ MA Crossover: Liquidity boosted -> boost to x1.23 (spread/ATR 0.06) | risk x1.06 → x1.30
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+💧 USDJPY+ Momentum Trend: Liquidity boosted -> boost to x1.23 (spread/ATR 0.06) | risk x1.04 → x1.28
+✅ USDJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: neutral)
+🎯 USDJPY+ Momentum Trend: Signal buy rejected by micro momentum (-0.01% vs required ≥ 0.02%)
+💧 USDJPY+ Mean Reversion: Liquidity boosted -> boost to x1.23 (spread/ATR 0.06) | risk x1.00 → x1.23
+ℹ️ USDJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 GBPUSD+: Trading allowed (session priority 4/3 for New York)
+GBPUSD+ computed ATR(5) = 0.001220
+GBPUSD+ Volatility pressure: 1.13 | Candle conviction: 0.75
+📉 GBPUSD+ Spread snapshot -> 3.0 pts (0.000030) | Spread/ATR 0.02
+⚡ GBPUSD+: Alpha surge detected (session 4, vol 1.13, candle 0.75, spread/ATR 0.02) | risk x1.18, confidence relief 0.05
+📊 GBPUSD+ Market Regime: TRENDING
+📈 GBPUSD+: no open positions
+💧 GBPUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.07 → x1.34
+⚡ GBPUSD+ Breakout: Alpha surge scaling risk x1.34 → x1.58 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+💧 GBPUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.00 → x1.25
+⚡ GBPUSD+ Donchian Channel: Alpha surge scaling risk x1.25 → x1.47 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+💧 GBPUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+⚡ GBPUSD+ MA Crossover: Alpha surge scaling risk x1.39 → x1.64 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+💧 GBPUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+⚡ GBPUSD+ Momentum Trend: Alpha surge scaling risk x1.36 → x1.60 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+💧 GBPUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.00 → x1.25
+⚡ GBPUSD+ Mean Reversion: Alpha surge scaling risk x1.25 → x1.47 | threshold 0.65 → 0.60
+✅ GBPUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 GBPUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.03% vs required ≤ -0.02%)
+📊 GBPJPY+: Skipping (session priority 2/3 for New York)
+📊 XAUUSD+: Trading allowed (session priority 4/3 for New York)
+XAUUSD+ computed ATR(5) = 13.102000
+XAUUSD+ Volatility pressure: 1.31 | Candle conviction: 0.56
+📉 XAUUSD+ Spread snapshot -> 8.0 pts (0.080000) | Spread/ATR 0.01
+📊 XAUUSD+ Market Regime: VOLATILE
+📈 XAUUSD+: no open positions
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+✅ XAUUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 XAUUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.18% vs required ≤ -0.10%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+ℹ️ XAUUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📒 Scan #6 summary -> symbols processed 5/5 | open-symbols 1 | candidates 0 | executed 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 4 | position-blocked 0 | duplicates 0 | guard-blocked 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 16 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 20 | throttles 0 | blocks 0
+⚡ Alpha surge -> detected 1 | scaled 5
+⏱️ Next scan in 60 seconds...
+
+====================================================================
+🔁 Scan #7 | Local 2025-10-02 21:11:57 | UTC 19:11:57
+💼 Account snapshot -> Balance: 878.37 | Equity: 873.80 | Free Margin: 857.80 | Margin Used: 16.00 | Open PnL: -4.57
+📈 Run performance -> Equity Δ -0.95 (-0.11%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 16.00 (1.8% of equity) | Margin level 5461.2% | Leverage setting 500x
+📂 Open positions -> EURUSD+: 1 pos (buy 0.00, sell 0.08, net -0.08, pnl -4.57)
+📘 Position ledger (all symbols):
+   • EURUSD+ #417643773 SELL 0.08@1.17184→1.17251 (-67 pts) | PnL -4.57 | SL 1.17564 (313 pts) | TP 1.16908 (343 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-02 20:53:15 | Magic 123456 | Tag MTS20
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: New York
+Checking signals at 2025-10-02 21:11:57
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, combined 1.00
+📊 EURUSD+: Trading allowed (session priority 4/3 for New York)
+EURUSD+ computed ATR(5) = 0.001146
+EURUSD+ Volatility pressure: 1.13 | Candle conviction: 0.50
+📉 EURUSD+ Spread snapshot -> 1.0 pts (0.000010) | Spread/ATR 0.01
+📊 EURUSD+ Market Regime: VOLATILE
+📈 EURUSD+ Open position -> #417643773 SELL 0.08@1.17184→1.17251 (-67 pts) | PnL -4.57 | SL 1.17564 (313 pts) | TP 1.16908 (343 pts) | Age 0s | Tag MTS20
+💧 EURUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+ℹ️ EURUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 EURUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+ℹ️ EURUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 EURUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+ℹ️ EURUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 EURUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+✅ EURUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 EURUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.06% vs required ≤ -0.02%)
+💧 EURUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+ℹ️ EURUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 USDJPY+: Trading allowed (session priority 3/3 for New York)
+USDJPY+ computed ATR(5) = 0.116600
+USDJPY+ Volatility pressure: 1.00 | Candle conviction: 0.50
+📉 USDJPY+ Spread snapshot -> 6.0 pts (0.006000) | Spread/ATR 0.05
+📊 USDJPY+ Market Regime: TRENDING
+📈 USDJPY+: no open positions
+💧 USDJPY+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.05) | risk x1.02 → x1.27
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+💧 USDJPY+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.05) | risk x1.00 → x1.25
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+💧 USDJPY+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.05) | risk x1.06 → x1.33
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+💧 USDJPY+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.05) | risk x1.04 → x1.30
+✅ USDJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: neutral)
+🎯 USDJPY+ Momentum Trend: Signal buy rejected by micro momentum (-0.01% vs required ≥ 0.02%)
+💧 USDJPY+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.05) | risk x1.00 → x1.25
+ℹ️ USDJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 GBPUSD+: Trading allowed (session priority 4/3 for New York)
+GBPUSD+ computed ATR(5) = 0.001220
+GBPUSD+ Volatility pressure: 1.13 | Candle conviction: 0.75
+📉 GBPUSD+ Spread snapshot -> 5.0 pts (0.000050) | Spread/ATR 0.04
+⚡ GBPUSD+: Alpha surge detected (session 4, vol 1.13, candle 0.75, spread/ATR 0.04) | risk x1.18, confidence relief 0.05
+📊 GBPUSD+ Market Regime: TRENDING
+📈 GBPUSD+: no open positions
+💧 GBPUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.07 → x1.34
+⚡ GBPUSD+ Breakout: Alpha surge scaling risk x1.34 → x1.58 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+💧 GBPUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.00 → x1.25
+⚡ GBPUSD+ Donchian Channel: Alpha surge scaling risk x1.25 → x1.47 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+💧 GBPUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.11 → x1.39
+⚡ GBPUSD+ MA Crossover: Alpha surge scaling risk x1.39 → x1.64 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+💧 GBPUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.09 → x1.36
+⚡ GBPUSD+ Momentum Trend: Alpha surge scaling risk x1.36 → x1.60 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+💧 GBPUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.00 → x1.25
+⚡ GBPUSD+ Mean Reversion: Alpha surge scaling risk x1.25 → x1.47 | threshold 0.65 → 0.60
+✅ GBPUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 GBPUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.03% vs required ≤ -0.02%)
+📊 GBPJPY+: Skipping (session priority 2/3 for New York)
+📊 XAUUSD+: Trading allowed (session priority 4/3 for New York)
+XAUUSD+ computed ATR(5) = 13.102000
+XAUUSD+ Volatility pressure: 1.31 | Candle conviction: 0.56
+📉 XAUUSD+ Spread snapshot -> 8.0 pts (0.080000) | Spread/ATR 0.01
+📊 XAUUSD+ Market Regime: VOLATILE
+📈 XAUUSD+: no open positions
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+✅ XAUUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 XAUUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.18% vs required ≤ -0.10%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+ℹ️ XAUUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📒 Scan #7 summary -> symbols processed 5/5 | open-symbols 1 | candidates 0 | executed 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 4 | position-blocked 0 | duplicates 0 | guard-blocked 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 16 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 20 | throttles 0 | blocks 0
+⚡ Alpha surge -> detected 1 | scaled 5
+⏱️ Next scan in 60 seconds...
+
+====================================================================
+🔁 Scan #8 | Local 2025-10-02 21:12:57 | UTC 19:12:57
+💼 Account snapshot -> Balance: 878.37 | Equity: 873.73 | Free Margin: 857.73 | Margin Used: 16.00 | Open PnL: -4.64
+📈 Run performance -> Equity Δ -1.02 (-0.12%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 16.00 (1.8% of equity) | Margin level 5460.8% | Leverage setting 500x
+📂 Open positions -> EURUSD+: 1 pos (buy 0.00, sell 0.08, net -0.08, pnl -4.64)
+📘 Position ledger (all symbols):
+   • EURUSD+ #417643773 SELL 0.08@1.17184→1.17252 (-68 pts) | PnL -4.64 | SL 1.17564 (312 pts) | TP 1.16908 (344 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-02 20:53:15 | Magic 123456 | Tag MTS20
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: New York
+Checking signals at 2025-10-02 21:12:57
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, combined 1.00
+📊 EURUSD+: Trading allowed (session priority 4/3 for New York)
+EURUSD+ computed ATR(5) = 0.001146
+EURUSD+ Volatility pressure: 1.13 | Candle conviction: 0.50
+📉 EURUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 EURUSD+ Market Regime: VOLATILE
+📈 EURUSD+ Open position -> #417643773 SELL 0.08@1.17184→1.17252 (-68 pts) | PnL -4.64 | SL 1.17564 (312 pts) | TP 1.16908 (344 pts) | Age 0s | Tag MTS20
+ℹ️ EURUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+ℹ️ EURUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+ℹ️ EURUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+✅ EURUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 EURUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.06% vs required ≤ -0.02%)
+ℹ️ EURUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 USDJPY+: Trading allowed (session priority 3/3 for New York)
+USDJPY+ computed ATR(5) = 0.116600
+USDJPY+ Volatility pressure: 1.00 | Candle conviction: 0.50
+📉 USDJPY+ Spread snapshot -> 5.0 pts (0.005000) | Spread/ATR 0.04
+📊 USDJPY+ Market Regime: TRENDING
+📈 USDJPY+: no open positions
+💧 USDJPY+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.02 → x1.27
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+💧 USDJPY+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.00 → x1.25
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+💧 USDJPY+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.06 → x1.33
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+💧 USDJPY+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.04 → x1.30
+✅ USDJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: neutral)
+🎯 USDJPY+ Momentum Trend: Signal buy rejected by micro momentum (-0.01% vs required ≥ 0.02%)
+💧 USDJPY+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.00 → x1.25
+ℹ️ USDJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 GBPUSD+: Trading allowed (session priority 4/3 for New York)
+GBPUSD+ computed ATR(5) = 0.001220
+GBPUSD+ Volatility pressure: 1.13 | Candle conviction: 0.75
+📉 GBPUSD+ Spread snapshot -> 5.0 pts (0.000050) | Spread/ATR 0.04
+⚡ GBPUSD+: Alpha surge detected (session 4, vol 1.13, candle 0.75, spread/ATR 0.04) | risk x1.18, confidence relief 0.05
+📊 GBPUSD+ Market Regime: TRENDING
+📈 GBPUSD+: no open positions
+💧 GBPUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.07 → x1.34
+⚡ GBPUSD+ Breakout: Alpha surge scaling risk x1.34 → x1.58 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+💧 GBPUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.00 → x1.25
+⚡ GBPUSD+ Donchian Channel: Alpha surge scaling risk x1.25 → x1.47 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+💧 GBPUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.11 → x1.39
+⚡ GBPUSD+ MA Crossover: Alpha surge scaling risk x1.39 → x1.64 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+💧 GBPUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.09 → x1.36
+⚡ GBPUSD+ Momentum Trend: Alpha surge scaling risk x1.36 → x1.60 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+💧 GBPUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.04) | risk x1.00 → x1.25
+⚡ GBPUSD+ Mean Reversion: Alpha surge scaling risk x1.25 → x1.47 | threshold 0.65 → 0.60
+✅ GBPUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 GBPUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.04% vs required ≤ -0.02%)
+📊 GBPJPY+: Skipping (session priority 2/3 for New York)
+📊 XAUUSD+: Trading allowed (session priority 4/3 for New York)
+XAUUSD+ computed ATR(5) = 13.102000
+XAUUSD+ Volatility pressure: 1.31 | Candle conviction: 0.56
+📉 XAUUSD+ Spread snapshot -> 8.0 pts (0.080000) | Spread/ATR 0.01
+📊 XAUUSD+ Market Regime: VOLATILE
+📈 XAUUSD+: no open positions
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+✅ XAUUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 XAUUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.18% vs required ≤ -0.10%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+ℹ️ XAUUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📒 Scan #8 summary -> symbols processed 5/5 | open-symbols 1 | candidates 0 | executed 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 4 | position-blocked 0 | duplicates 0 | guard-blocked 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 16 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 15 | throttles 0 | blocks 0
+⚡ Alpha surge -> detected 1 | scaled 5
+⏱️ Next scan in 60 seconds...
+
+====================================================================
+🔁 Scan #9 | Local 2025-10-02 21:13:57 | UTC 19:13:57
+💼 Account snapshot -> Balance: 878.37 | Equity: 873.73 | Free Margin: 857.73 | Margin Used: 16.00 | Open PnL: -4.64
+📈 Run performance -> Equity Δ -1.02 (-0.12%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 16.00 (1.8% of equity) | Margin level 5460.8% | Leverage setting 500x
+📂 Open positions -> EURUSD+: 1 pos (buy 0.00, sell 0.08, net -0.08, pnl -4.64)
+📘 Position ledger (all symbols):
+   • EURUSD+ #417643773 SELL 0.08@1.17184→1.17252 (-68 pts) | PnL -4.64 | SL 1.17564 (312 pts) | TP 1.16908 (344 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-02 20:53:15 | Magic 123456 | Tag MTS20
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: New York
+Checking signals at 2025-10-02 21:13:57
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, combined 1.00
+📊 EURUSD+: Trading allowed (session priority 4/3 for New York)
+EURUSD+ computed ATR(5) = 0.001146
+EURUSD+ Volatility pressure: 1.13 | Candle conviction: 0.50
+📉 EURUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 EURUSD+ Market Regime: VOLATILE
+📈 EURUSD+ Open position -> #417643773 SELL 0.08@1.17184→1.17252 (-68 pts) | PnL -4.64 | SL 1.17564 (312 pts) | TP 1.16908 (344 pts) | Age 0s | Tag MTS20
+ℹ️ EURUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+ℹ️ EURUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+ℹ️ EURUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+✅ EURUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 EURUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.06% vs required ≤ -0.02%)
+ℹ️ EURUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 USDJPY+: Trading allowed (session priority 3/3 for New York)
+USDJPY+ computed ATR(5) = 0.116600
+USDJPY+ Volatility pressure: 1.00 | Candle conviction: 0.50
+📉 USDJPY+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 USDJPY+ Market Regime: TRENDING
+📈 USDJPY+: no open positions
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+✅ USDJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: neutral)
+🎯 USDJPY+ Momentum Trend: Signal buy rejected by micro momentum (-0.01% vs required ≥ 0.02%)
+ℹ️ USDJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 GBPUSD+: Trading allowed (session priority 4/3 for New York)
+GBPUSD+ computed ATR(5) = 0.001220
+GBPUSD+ Volatility pressure: 1.13 | Candle conviction: 0.75
+📉 GBPUSD+ Spread snapshot -> 2.0 pts (0.000020) | Spread/ATR 0.02
+⚡ GBPUSD+: Alpha surge detected (session 4, vol 1.13, candle 0.75, spread/ATR 0.02) | risk x1.18, confidence relief 0.05
+📊 GBPUSD+ Market Regime: TRENDING
+📈 GBPUSD+: no open positions
+💧 GBPUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.07 → x1.34
+⚡ GBPUSD+ Breakout: Alpha surge scaling risk x1.34 → x1.58 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+💧 GBPUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.00 → x1.25
+⚡ GBPUSD+ Donchian Channel: Alpha surge scaling risk x1.25 → x1.47 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+💧 GBPUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+⚡ GBPUSD+ MA Crossover: Alpha surge scaling risk x1.39 → x1.64 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+💧 GBPUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+⚡ GBPUSD+ Momentum Trend: Alpha surge scaling risk x1.36 → x1.60 | threshold 0.65 → 0.60
+ℹ️ GBPUSD+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+💧 GBPUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.00 → x1.25
+⚡ GBPUSD+ Mean Reversion: Alpha surge scaling risk x1.25 → x1.47 | threshold 0.65 → 0.60
+✅ GBPUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 GBPUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.04% vs required ≤ -0.02%)
+📊 GBPJPY+: Skipping (session priority 2/3 for New York)
+📊 XAUUSD+: Trading allowed (session priority 4/3 for New York)
+XAUUSD+ computed ATR(5) = 13.102000
+XAUUSD+ Volatility pressure: 1.31 | Candle conviction: 0.56
+📉 XAUUSD+ Spread snapshot -> 7.0 pts (0.070000) | Spread/ATR 0.01
+📊 XAUUSD+ Market Regime: VOLATILE
+📈 XAUUSD+: no open positions
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+✅ XAUUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 XAUUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.16% vs required ≤ -0.10%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+ℹ️ XAUUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📒 Scan #9 summary -> symbols processed 5/5 | open-symbols 1 | candidates 0 | executed 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 4 | position-blocked 0 | duplicates 0 | guard-blocked 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 16 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 10 | throttles 0 | blocks 0
+⚡ Alpha surge -> detected 1 | scaled 5
+⏱️ Next scan in 60 seconds...
+
+====================================================================
+🔁 Scan #10 | Local 2025-10-02 21:14:57 | UTC 19:14:57
+💼 Account snapshot -> Balance: 878.37 | Equity: 874.00 | Free Margin: 858.00 | Margin Used: 16.00 | Open PnL: -4.37
+📈 Run performance -> Equity Δ -0.75 (-0.09%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 16.00 (1.8% of equity) | Margin level 5462.5% | Leverage setting 500x
+📂 Open positions -> EURUSD+: 1 pos (buy 0.00, sell 0.08, net -0.08, pnl -4.37)
+📘 Position ledger (all symbols):
+   • EURUSD+ #417643773 SELL 0.08@1.17184→1.17248 (-64 pts) | PnL -4.37 | SL 1.17564 (316 pts) | TP 1.16908 (340 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-02 20:53:15 | Magic 123456 | Tag MTS20
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: New York
+Checking signals at 2025-10-02 21:14:57
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, combined 1.00
+📊 EURUSD+: Trading allowed (session priority 4/3 for New York)
+EURUSD+ computed ATR(5) = 0.001146
+EURUSD+ Volatility pressure: 1.13 | Candle conviction: 0.50
+📉 EURUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 EURUSD+ Market Regime: VOLATILE
+📈 EURUSD+ Open position -> #417643773 SELL 0.08@1.17184→1.17248 (-64 pts) | PnL -4.37 | SL 1.17564 (316 pts) | TP 1.16908 (340 pts) | Age 0s | Tag MTS20
+ℹ️ EURUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+ℹ️ EURUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+ℹ️ EURUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+✅ EURUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 EURUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.05% vs required ≤ -0.03%)
+ℹ️ EURUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 USDJPY+: Trading allowed (session priority 3/3 for New York)
+USDJPY+ computed ATR(5) = 0.116600
+USDJPY+ Volatility pressure: 1.00 | Candle conviction: 0.50
+📉 USDJPY+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 USDJPY+ Market Regime: TRENDING
+📈 USDJPY+: no open positions
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+✅ USDJPY+ Momentum Trend: Signal buy confirmed by MTF (H1 bias: neutral)
+🎯 USDJPY+ Momentum Trend: Signal buy rejected by micro momentum (-0.01% vs required ≥ 0.02%)
+ℹ️ USDJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 GBPUSD+: Trading allowed (session priority 4/3 for New York)
+GBPUSD+ computed ATR(5) = 0.001220
+GBPUSD+ Volatility pressure: 1.13 | Candle conviction: 0.75
+📉 GBPUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 GBPUSD+ Market Regime: TRENDING
+📈 GBPUSD+: no open positions
+ℹ️ GBPUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ GBPUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ GBPUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+ℹ️ GBPUSD+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+✅ GBPUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 GBPUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.04% vs required ≤ -0.02%)
+📊 GBPJPY+: Skipping (session priority 2/3 for New York)
+📊 XAUUSD+: Trading allowed (session priority 4/3 for New York)
+XAUUSD+ computed ATR(5) = 13.102000
+XAUUSD+ Volatility pressure: 1.31 | Candle conviction: 0.56
+📉 XAUUSD+ Spread snapshot -> 7.0 pts (0.070000) | Spread/ATR 0.01
+📊 XAUUSD+ Market Regime: VOLATILE
+📈 XAUUSD+: no open positions
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+✅ XAUUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 XAUUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.16% vs required ≤ -0.10%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+ℹ️ XAUUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📒 Scan #10 summary -> symbols processed 5/5 | open-symbols 1 | candidates 0 | executed 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 4 | position-blocked 0 | duplicates 0 | guard-blocked 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 16 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 5 | throttles 0 | blocks 0
+⚡ Alpha surge -> detected 0 | scaled 0
+⏱️ Next scan in 60 seconds...
+
+====================================================================
+🔁 Scan #11 | Local 2025-10-02 21:15:57 | UTC 19:15:57
+💼 Account snapshot -> Balance: 878.37 | Equity: 874.07 | Free Margin: 858.07 | Margin Used: 16.00 | Open PnL: -4.30
+📈 Run performance -> Equity Δ -0.68 (-0.08%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 16.00 (1.8% of equity) | Margin level 5462.9% | Leverage setting 500x
+📂 Open positions -> EURUSD+: 1 pos (buy 0.00, sell 0.08, net -0.08, pnl -4.30)
+📘 Position ledger (all symbols):
+   • EURUSD+ #417643773 SELL 0.08@1.17184→1.17247 (-63 pts) | PnL -4.30 | SL 1.17564 (317 pts) | TP 1.16908 (339 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-02 20:53:15 | Magic 123456 | Tag MTS20
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: New York
+Checking signals at 2025-10-02 21:15:57
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, combined 1.00
+📊 EURUSD+: Trading allowed (session priority 4/3 for New York)
+EURUSD+ computed ATR(5) = 0.001156
+EURUSD+ Volatility pressure: 1.12 | Candle conviction: 0.53
+📉 EURUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 EURUSD+ Market Regime: TRENDING
+📈 EURUSD+ Open position -> #417643773 SELL 0.08@1.17184→1.17247 (-63 pts) | PnL -4.30 | SL 1.17564 (317 pts) | TP 1.16908 (339 pts) | Age 0s | Tag MTS20
+ℹ️ EURUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ EURUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ EURUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+✅ EURUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 EURUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.05% vs required ≤ -0.02%)
+ℹ️ EURUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 USDJPY+: Trading allowed (session priority 3/3 for New York)
+USDJPY+ computed ATR(5) = 0.113000
+USDJPY+ Volatility pressure: 0.96 | Candle conviction: 0.69
+📉 USDJPY+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 USDJPY+ Market Regime: TRENDING
+📈 USDJPY+: no open positions
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+ℹ️ USDJPY+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+ℹ️ USDJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 GBPUSD+: Trading allowed (session priority 4/3 for New York)
+GBPUSD+ computed ATR(5) = 0.001208
+GBPUSD+ Volatility pressure: 1.11 | Candle conviction: 0.67
+📉 GBPUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 GBPUSD+ Market Regime: TRENDING
+📈 GBPUSD+: no open positions
+ℹ️ GBPUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ GBPUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ GBPUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+ℹ️ GBPUSD+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+✅ GBPUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 GBPUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.02% vs required ≤ -0.02%)
+📊 GBPJPY+: Skipping (session priority 2/3 for New York)
+📊 XAUUSD+: Trading allowed (session priority 4/3 for New York)
+XAUUSD+ computed ATR(5) = 12.530000
+XAUUSD+ Volatility pressure: 1.20 | Candle conviction: 0.73
+📉 XAUUSD+ Spread snapshot -> 8.0 pts (0.080000) | Spread/ATR 0.01
+⚡ XAUUSD+: Alpha surge detected (session 4, vol 1.20, candle 0.73, spread/ATR 0.01) | risk x1.18, confidence relief 0.05
+📊 XAUUSD+ Market Regime: VOLATILE
+📈 XAUUSD+: no open positions
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+⚡ XAUUSD+ Breakout: Alpha surge scaling risk x1.39 → x1.64 | threshold 0.65 → 0.60
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+⚡ XAUUSD+ Donchian Channel: Alpha surge scaling risk x1.29 → x1.52 | threshold 0.65 → 0.60
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+⚡ XAUUSD+ MA Crossover: Alpha surge scaling risk x1.31 → x1.55 | threshold 0.65 → 0.60
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+⚡ XAUUSD+ Momentum Trend: Alpha surge scaling risk x1.34 → x1.58 | threshold 0.65 → 0.60
+✅ XAUUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 XAUUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.17% vs required ≤ -0.10%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+⚡ XAUUSD+ Mean Reversion: Alpha surge scaling risk x1.25 → x1.47 | threshold 0.65 → 0.60
+ℹ️ XAUUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📒 Scan #11 summary -> symbols processed 5/5 | open-symbols 1 | candidates 0 | executed 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 3 | position-blocked 0 | duplicates 0 | guard-blocked 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 17 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 5 | throttles 0 | blocks 0
+⚡ Alpha surge -> detected 1 | scaled 5
+⏱️ Next scan in 60 seconds...
+
+====================================================================
+🔁 Scan #12 | Local 2025-10-02 21:16:57 | UTC 19:16:57
+💼 Account snapshot -> Balance: 878.37 | Equity: 873.73 | Free Margin: 857.73 | Margin Used: 16.00 | Open PnL: -4.64
+📈 Run performance -> Equity Δ -1.02 (-0.12%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 16.00 (1.8% of equity) | Margin level 5460.8% | Leverage setting 500x
+📂 Open positions -> EURUSD+: 1 pos (buy 0.00, sell 0.08, net -0.08, pnl -4.64)
+📘 Position ledger (all symbols):
+   • EURUSD+ #417643773 SELL 0.08@1.17184→1.17252 (-68 pts) | PnL -4.64 | SL 1.17564 (312 pts) | TP 1.16908 (344 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-02 20:53:15 | Magic 123456 | Tag MTS20
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: New York
+Checking signals at 2025-10-02 21:16:57
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, combined 1.00
+📊 EURUSD+: Trading allowed (session priority 4/3 for New York)
+EURUSD+ computed ATR(5) = 0.001156
+EURUSD+ Volatility pressure: 1.12 | Candle conviction: 0.53
+📉 EURUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 EURUSD+ Market Regime: TRENDING
+📈 EURUSD+ Open position -> #417643773 SELL 0.08@1.17184→1.17252 (-68 pts) | PnL -4.64 | SL 1.17564 (312 pts) | TP 1.16908 (344 pts) | Age 0s | Tag MTS20
+ℹ️ EURUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ EURUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ EURUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+✅ EURUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 EURUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.05% vs required ≤ -0.02%)
+ℹ️ EURUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 USDJPY+: Trading allowed (session priority 3/3 for New York)
+USDJPY+ computed ATR(5) = 0.113000
+USDJPY+ Volatility pressure: 0.96 | Candle conviction: 0.69
+📉 USDJPY+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 USDJPY+ Market Regime: TRENDING
+📈 USDJPY+: no open positions
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+ℹ️ USDJPY+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+ℹ️ USDJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 GBPUSD+: Trading allowed (session priority 4/3 for New York)
+GBPUSD+ computed ATR(5) = 0.001208
+GBPUSD+ Volatility pressure: 1.11 | Candle conviction: 0.67
+📉 GBPUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 GBPUSD+ Market Regime: TRENDING
+📈 GBPUSD+: no open positions
+ℹ️ GBPUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ GBPUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ GBPUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+ℹ️ GBPUSD+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+✅ GBPUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 GBPUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.03% vs required ≤ -0.02%)
+📊 GBPJPY+: Skipping (session priority 2/3 for New York)
+📊 XAUUSD+: Trading allowed (session priority 4/3 for New York)
+XAUUSD+ computed ATR(5) = 12.530000
+XAUUSD+ Volatility pressure: 1.20 | Candle conviction: 0.73
+📉 XAUUSD+ Spread snapshot -> 7.0 pts (0.070000) | Spread/ATR 0.01
+⚡ XAUUSD+: Alpha surge detected (session 4, vol 1.20, candle 0.73, spread/ATR 0.01) | risk x1.18, confidence relief 0.05
+📊 XAUUSD+ Market Regime: VOLATILE
+📈 XAUUSD+: no open positions
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+⚡ XAUUSD+ Breakout: Alpha surge scaling risk x1.39 → x1.64 | threshold 0.65 → 0.60
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+⚡ XAUUSD+ Donchian Channel: Alpha surge scaling risk x1.29 → x1.52 | threshold 0.65 → 0.60
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+⚡ XAUUSD+ MA Crossover: Alpha surge scaling risk x1.31 → x1.55 | threshold 0.65 → 0.60
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+⚡ XAUUSD+ Momentum Trend: Alpha surge scaling risk x1.34 → x1.58 | threshold 0.65 → 0.60
+✅ XAUUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 XAUUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.21% vs required ≤ -0.10%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+⚡ XAUUSD+ Mean Reversion: Alpha surge scaling risk x1.25 → x1.47 | threshold 0.65 → 0.60
+ℹ️ XAUUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📒 Scan #12 summary -> symbols processed 5/5 | open-symbols 1 | candidates 0 | executed 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 3 | position-blocked 0 | duplicates 0 | guard-blocked 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 17 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 5 | throttles 0 | blocks 0
+⚡ Alpha surge -> detected 1 | scaled 5
+⏱️ Next scan in 60 seconds...
+
+====================================================================
+🔁 Scan #13 | Local 2025-10-02 21:17:57 | UTC 19:17:57
+💼 Account snapshot -> Balance: 878.37 | Equity: 874.14 | Free Margin: 858.14 | Margin Used: 16.00 | Open PnL: -4.23
+📈 Run performance -> Equity Δ -0.61 (-0.07%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 16.00 (1.8% of equity) | Margin level 5463.4% | Leverage setting 500x
+📂 Open positions -> EURUSD+: 1 pos (buy 0.00, sell 0.08, net -0.08, pnl -4.23)
+📘 Position ledger (all symbols):
+   • EURUSD+ #417643773 SELL 0.08@1.17184→1.17246 (-62 pts) | PnL -4.23 | SL 1.17564 (318 pts) | TP 1.16908 (338 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-02 20:53:15 | Magic 123456 | Tag MTS20
+🎯 Symbols in scope this cycle -> EURUSD+, USDJPY+, GBPUSD+, GBPJPY+, XAUUSD+
+
+🌍 Active trading session: New York
+Checking signals at 2025-10-02 21:17:57
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, combined 1.00
+📊 EURUSD+: Trading allowed (session priority 4/3 for New York)
+EURUSD+ computed ATR(5) = 0.001156
+EURUSD+ Volatility pressure: 1.12 | Candle conviction: 0.53
+📉 EURUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 EURUSD+ Market Regime: TRENDING
+📈 EURUSD+ Open position -> #417643773 SELL 0.08@1.17184→1.17246 (-62 pts) | PnL -4.23 | SL 1.17564 (318 pts) | TP 1.16908 (338 pts) | Age 0s | Tag MTS20
+ℹ️ EURUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ EURUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ EURUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+✅ EURUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 EURUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.05% vs required ≤ -0.02%)
+ℹ️ EURUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 USDJPY+: Trading allowed (session priority 3/3 for New York)
+USDJPY+ computed ATR(5) = 0.113000
+USDJPY+ Volatility pressure: 0.96 | Candle conviction: 0.69
+📉 USDJPY+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 USDJPY+ Market Regime: TRENDING
+📈 USDJPY+: no open positions
+ℹ️ USDJPY+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ USDJPY+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ USDJPY+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+ℹ️ USDJPY+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+ℹ️ USDJPY+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📊 GBPUSD+: Trading allowed (session priority 4/3 for New York)
+GBPUSD+ computed ATR(5) = 0.001208
+GBPUSD+ Volatility pressure: 1.11 | Candle conviction: 0.67
+📉 GBPUSD+ Spread snapshot -> 0.0 pts (0.000000) | Spread/ATR 0.00
+📊 GBPUSD+ Market Regime: TRENDING
+📈 GBPUSD+: no open positions
+ℹ️ GBPUSD+ Breakout: No actionable signal (raw=None) | regime weight 25.0% | performance 1.00× | adj priority 12.0
+ℹ️ GBPUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 80.0
+ℹ️ GBPUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 5.7
+ℹ️ GBPUSD+ Momentum Trend: No actionable signal (raw=None) | regime weight 30.0% | performance 1.00× | adj priority 16.7
+✅ GBPUSD+ Mean Reversion: Signal sell confirmed by MTF (H1 bias: neutral)
+🎯 GBPUSD+ Mean Reversion: Signal sell rejected by micro momentum (+0.03% vs required ≤ -0.02%)
+📊 GBPJPY+: Skipping (session priority 2/3 for New York)
+📊 XAUUSD+: Trading allowed (session priority 4/3 for New York)
+XAUUSD+ computed ATR(5) = 12.530000
+XAUUSD+ Volatility pressure: 1.20 | Candle conviction: 0.73
+📉 XAUUSD+ Spread snapshot -> 8.0 pts (0.080000) | Spread/ATR 0.01
+⚡ XAUUSD+: Alpha surge detected (session 4, vol 1.20, candle 0.73, spread/ATR 0.01) | risk x1.18, confidence relief 0.05
+📊 XAUUSD+ Market Regime: VOLATILE
+📈 XAUUSD+: no open positions
+💧 XAUUSD+ Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.11 → x1.39
+⚡ XAUUSD+ Breakout: Alpha surge scaling risk x1.39 → x1.64 | threshold 0.65 → 0.60
+ℹ️ XAUUSD+ Breakout: No actionable signal (raw=None) | regime weight 35.0% | performance 1.00× | adj priority 8.6
+💧 XAUUSD+ Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.03 → x1.29
+⚡ XAUUSD+ Donchian Channel: Alpha surge scaling risk x1.29 → x1.52 | threshold 0.65 → 0.60
+ℹ️ XAUUSD+ Donchian Channel: No actionable signal (raw=None) | regime weight 15.0% | performance 1.00× | adj priority 26.7
+💧 XAUUSD+ MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.05 → x1.31
+⚡ XAUUSD+ MA Crossover: Alpha surge scaling risk x1.31 → x1.55 | threshold 0.65 → 0.60
+ℹ️ XAUUSD+ MA Crossover: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 10.0
+💧 XAUUSD+ Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.07 → x1.34
+⚡ XAUUSD+ Momentum Trend: Alpha surge scaling risk x1.34 → x1.58 | threshold 0.65 → 0.60
+✅ XAUUSD+ Momentum Trend: Signal sell confirmed by MTF (H1 bias: bearish)
+🎯 XAUUSD+ Momentum Trend: Signal sell rejected by micro momentum (+0.21% vs required ≤ -0.10%)
+💧 XAUUSD+ Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.01) | risk x1.00 → x1.25
+⚡ XAUUSD+ Mean Reversion: Alpha surge scaling risk x1.25 → x1.47 | threshold 0.65 → 0.60
+ℹ️ XAUUSD+ Mean Reversion: No actionable signal (raw=None) | regime weight 5.0% | performance 1.00× | adj priority 20.0
+📒 Scan #13 summary -> symbols processed 5/5 | open-symbols 1 | candidates 0 | executed 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 3 | position-blocked 0 | duplicates 0 | guard-blocked 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | no-signal 17 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 5 | throttles 0 | blocks 0
+⚡ Alpha surge -> detected 1 | scaled 5
+⏱️ Next scan in 60 seconds...
+
+🛑 Manual stop requested — wrapping up after scan #13.
+💼 Final account snapshot -> Balance: 878.37 | Equity: 874.21 | Free Margin: 858.21 | Margin Used: 16.00 | Margin Level: 5463.8% | Leverage: 500x | Open PnL: -4.16
+📈 Final run performance -> Equity Δ -0.54 (-0.06%) | Balance Δ +0.00
+📂 Final open positions -> EURUSD+: 1 pos (buy 0.00, sell 0.08, net -0.08, pnl -4.16)
+📘 Final position ledger:
+   • EURUSD+ #417643773 SELL 0.08@1.17184→1.17245 (-61 pts) | PnL -4.16 | SL 1.17564 (319 pts) | TP 1.16908 (337 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-02 20:53:15 | Magic 123456 | Tag MTS20
