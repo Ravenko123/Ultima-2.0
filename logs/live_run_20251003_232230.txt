@@ -1,0 +1,874 @@
+📝 Logging live run to D:\RAVBOTGITHUB\ULTIMA2.0\Ultima-2.0\logs\live_run_20251003_232230.txt (retaining last 30 logs)
+📊 No existing performance file found, starting fresh tracking
+🧠 Strategy roster: 6 profiles active for persona Firestorm Aggressor
+🔥 Persona activated: Firestorm Aggressor (FIRE)
+   ↳ Leverages breakout momentum, stacking hard into explosive trends.
+   ↳ Underlying risk preset: HIGH — Aggressive compounding
+📨 Telegram remote control ready for authorized ID(s): 6401257809
+
+====================================================================
+🔁 Scan #1 | Local 2025-10-03 23:22:30 | UTC 21:22:30
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:22:30
+ℹ️  MetaTrader5.history_positions_get unavailable; using deal history fallback for closed position telemetry.
+ℹ️  Emitting trade_closed telemetry via history_deals_get fallback.
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1707.0 pts (17.070000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #1 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #2 | Local 2025-10-03 23:22:48 | UTC 21:22:48
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:22:48
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1695.0 pts (16.950000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #2 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #3 | Local 2025-10-03 23:23:06 | UTC 21:23:06
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:23:06
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1699.0 pts (16.990000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #3 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #4 | Local 2025-10-03 23:23:24 | UTC 21:23:24
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:23:24
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1711.0 pts (17.110000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #4 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #5 | Local 2025-10-03 23:23:42 | UTC 21:23:42
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:23:42
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1707.0 pts (17.070000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #5 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #6 | Local 2025-10-03 23:24:00 | UTC 21:24:00
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:24:00
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1698.0 pts (16.980000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #6 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #7 | Local 2025-10-03 23:24:18 | UTC 21:24:18
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:24:18
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1698.0 pts (16.980000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #7 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #8 | Local 2025-10-03 23:24:36 | UTC 21:24:36
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:24:36
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1698.0 pts (16.980000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #8 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #9 | Local 2025-10-03 23:24:54 | UTC 21:24:54
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:24:54
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1707.0 pts (17.070000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #9 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #10 | Local 2025-10-03 23:25:12 | UTC 21:25:12
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:25:12
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+🧭 Dynamic VaR calibrating: collected 10/28 return samples.
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1705.0 pts (17.050000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #10 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #11 | Local 2025-10-03 23:25:30 | UTC 21:25:30
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:25:30
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1709.0 pts (17.090000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #11 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #12 | Local 2025-10-03 23:25:48 | UTC 21:25:48
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:25:48
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1710.0 pts (17.100000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #12 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #13 | Local 2025-10-03 23:26:06 | UTC 21:26:06
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:26:06
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1699.0 pts (16.990000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #13 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #14 | Local 2025-10-03 23:26:24 | UTC 21:26:24
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:26:24
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1708.0 pts (17.080000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #14 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #15 | Local 2025-10-03 23:26:42 | UTC 21:26:42
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:26:42
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1706.0 pts (17.060000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #15 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #16 | Local 2025-10-03 23:27:00 | UTC 21:27:00
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:27:00
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1701.0 pts (17.010000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #16 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #17 | Local 2025-10-03 23:27:18 | UTC 21:27:18
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:27:18
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1712.0 pts (17.120000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #17 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #18 | Local 2025-10-03 23:27:36 | UTC 21:27:36
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:27:36
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1706.0 pts (17.060000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #18 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #19 | Local 2025-10-03 23:27:54 | UTC 21:27:54
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:27:54
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1704.0 pts (17.040000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #19 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #20 | Local 2025-10-03 23:28:12 | UTC 21:28:12
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:28:12
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+🧭 Dynamic VaR calibrating: collected 20/28 return samples.
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1700.0 pts (17.000000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #20 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #21 | Local 2025-10-03 23:28:30 | UTC 21:28:30
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:28:30
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1703.0 pts (17.030000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #21 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #22 | Local 2025-10-03 23:28:48 | UTC 21:28:48
+💼 Account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Open PnL: 0.00
+📈 Run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 0.00 (0.0% of equity) | Margin level n/a | Leverage setting 500x
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:28:48
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 909.226000
+BTCUSD Volatility pressure: 1.37 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1706.0 pts (17.060000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #22 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+🛑 Manual stop requested — wrapping up after scan #22.
+💼 Final account snapshot -> Balance: 768.75 | Equity: 768.75 | Free Margin: 768.75 | Margin Used: 0.00 | Margin Level: n/a | Leverage: 500x | Open PnL: 0.00
+📈 Final run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+🧭 Equity governor status -> baseline 768.75, deviation +0.00%, factor 100%, state clear
+📊 Dynamic VaR status -> VaR 0.00% (target 2.40%), factor 100%, samples 22, state calibrating
+📂 Final open positions -> none

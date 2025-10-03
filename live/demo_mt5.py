@@ -2,7 +2,7 @@ import MetaTrader5 as mt5
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 import pytz
-from agents import MeanReversionAgent, MACrossoverAgent, MomentumTrendAgent, BreakoutAgent, DonchianChannelAgent
+from agents import MeanReversionAgent, MACrossoverAgent, MomentumTrendAgent, BreakoutAgent, DonchianChannelAgent, ImpulseScalpAgent
 import time
 import re
 import json
@@ -13,11 +13,33 @@ import queue
 import threading
 from pathlib import Path
 from collections import defaultdict, deque
+from types import SimpleNamespace
+from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass, field
 import math
 from statistics import mean, pstdev
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, cast
+# Ensure project root is on sys.path when running as a script (e.g., python live/demo_mt5.py)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+from analytics.inference import TradeOutcomeModel, load_trade_outcome_model
 from telegram_control import TelegramController
+from trading_defaults import (
+    ALL_SYMBOLS,
+    PRIMARY_TIMEFRAME_CODE,
+    WEEKDAY_SYMBOLS,
+    WEEKEND_SYMBOLS,
+)
+
+PRIMARY_TIMEFRAME = getattr(mt5, PRIMARY_TIMEFRAME_CODE, None)
+if PRIMARY_TIMEFRAME is None:
+    PRIMARY_TIMEFRAME = getattr(mt5, "TIMEFRAME_M15", None)
+if PRIMARY_TIMEFRAME is None:
+    PRIMARY_TIMEFRAME = getattr(mt5, "TIMEFRAME_M30", None)
+if PRIMARY_TIMEFRAME is None:
+    raise AttributeError("MetaTrader5 build missing TIMEFRAME_M15/M30 constants")
 # Strategy comment registry for MT5-safe order comments
 STRATEGY_COMMENT_REGISTRY = {
     "momentum trend": ("MT", "momentum_trend"),
@@ -29,6 +51,93 @@ STRATEGY_COMMENT_REGISTRY = {
 
 COMMENT_CODE_TO_PERF_KEY = {code: perf_key for code, perf_key in STRATEGY_COMMENT_REGISTRY.values()}
 COMMENT_CODE_CACHE = dict(COMMENT_CODE_TO_PERF_KEY)
+
+_LOG_ONCE_MESSAGES: set[str] = set()
+_LOG_ONCE_LOCK = threading.Lock()
+
+
+PERSONA_ALIASES: dict[str, str] = {
+    "fire": "fire",
+    "firestorm": "fire",
+    "inferno": "fire",
+    "earth": "earth",
+    "terra": "earth",
+    "ground": "earth",
+    "grounded": "earth",
+    "ice": "ice",
+    "frost": "ice",
+    "glacier": "ice",
+    "freeze": "ice",
+}
+
+PERSONA_ENV_VARS: tuple[str, ...] = (
+    "ULTIMA_PERSONA",
+    "ULTIMA_PROFILE",
+    "ULTIMA_THEME",
+)
+
+
+def _normalize_persona_key(value: object | None) -> str | None:
+    if not value:
+        return None
+    text = str(value).strip().lower()
+    if not text:
+        return None
+    slug = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+    if not slug:
+        return None
+    return PERSONA_ALIASES.get(slug, slug)
+
+
+def _extract_persona_from_argv(argv: list[str]) -> tuple[str | None, list[str]]:
+    if not argv:
+        return None, []
+    persona_key: str | None = None
+    sanitized: list[str] = [argv[0]]
+    skip_next = False
+    for idx in range(1, len(argv)):
+        if skip_next:
+            skip_next = False
+            continue
+        arg = argv[idx]
+        if arg.startswith("--persona="):
+            persona_key = _normalize_persona_key(arg.split("=", 1)[1])
+            continue
+        if arg in {"--persona", "-p", "--profile"}:
+            if idx + 1 < len(argv):
+                persona_key = _normalize_persona_key(argv[idx + 1])
+                skip_next = True
+            continue
+        sanitized.append(arg)
+    return persona_key, sanitized
+
+
+def _detect_requested_persona() -> tuple[str | None, str | None]:
+    persona_from_cli, sanitized = _extract_persona_from_argv(sys.argv)
+    source: str | None = None
+    if persona_from_cli:
+        source = "cli"
+        sys.argv = sanitized
+    persona_key = persona_from_cli
+    if not persona_key:
+        for env_name in PERSONA_ENV_VARS:
+            env_value = os.getenv(env_name)
+            if not env_value:
+                continue
+            candidate = _normalize_persona_key(env_value)
+            if candidate:
+                persona_key = candidate
+                source = f"env:{env_name.lower()}"
+                break
+    return persona_key, source
+
+
+def _log_once(key: str, message: str) -> None:
+    with _LOG_ONCE_LOCK:
+        if key in _LOG_ONCE_MESSAGES:
+            return
+        _LOG_ONCE_MESSAGES.add(key)
+    print(message)
 
 
 LOG_DIR = Path("logs")
@@ -263,11 +372,35 @@ MIN_TRADES_FOR_ADAPTATION = 10  # Minimum trades before adjusting weights
 # Risk guard settings
 RISK_GUARD_FILE = "risk_guard_state.json"
 RISK_PROFILE_STATE_FILE = Path("risk_profile_state.json")
-DAILY_MAX_DRAWDOWN = 0.12  # 12% maximum drop from daily peak
-WEEKLY_MAX_DRAWDOWN = 0.20  # 20% maximum drop from weekly peak
-RISK_RECOVERY_THRESHOLD = 0.05  # reduce risk once drawdown exceeds 5%
-RISK_RECOVERY_MIN_FACTOR = 0.35  # never risk more than 35% of base risk when deep in drawdown
-RISK_GUARD_ENABLED = False  # Temporarily disabled per latest instructions
+DAILY_MAX_DRAWDOWN = 0.09  # 9% maximum drop from daily peak
+WEEKLY_MAX_DRAWDOWN = 0.16  # 16% maximum drop from weekly peak
+RISK_RECOVERY_THRESHOLD = 0.045  # reduce risk once drawdown exceeds 4.5%
+RISK_RECOVERY_MIN_FACTOR = 0.42  # never risk more than 42% of base risk when deep in drawdown
+RISK_GUARD_ENABLED = False  # Temporarily disable daily/weekly hard stops
+
+ML_CONFIDENCE_ENABLED = str(os.getenv("ULTIMA_ML_CONFIDENCE", "1")).strip().lower() not in {
+    "0",
+    "false",
+    "off",
+    "no",
+}
+ML_CONFIDENCE_MODEL_PATH = Path(os.getenv("ULTIMA_ML_MODEL_PATH", "analytics_output/trade_classifier.joblib")).expanduser()
+ML_CONFIDENCE_LOW_PROB = float(os.getenv("ULTIMA_ML_LOW_PROB", "0.45"))
+ML_CONFIDENCE_HIGH_PROB = float(os.getenv("ULTIMA_ML_HIGH_PROB", "0.65"))
+ML_CONFIDENCE_MIN_MULTIPLIER = float(os.getenv("ULTIMA_ML_MIN_MULTIPLIER", "0.75"))
+ML_CONFIDENCE_MAX_MULTIPLIER = float(os.getenv("ULTIMA_ML_MAX_MULTIPLIER", "1.25"))
+ML_CONFIDENCE_GUARD_DAMP = float(os.getenv("ULTIMA_ML_GUARD_DAMP", "0.85"))
+ML_CONFIDENCE_MAX_CONFIDENCE = float(os.getenv("ULTIMA_ML_CONF_MAX", "1.5"))
+ML_CONFIDENCE_VERBOSE = str(os.getenv("ULTIMA_ML_VERBOSE", "1")).strip().lower() in {"1", "true", "yes", "on"}
+
+ml_confidence_runtime: dict[str, object] = {
+    "model": None,
+    "available": ML_CONFIDENCE_ENABLED,
+    "logged_missing": False,
+    "logged_disabled": not ML_CONFIDENCE_ENABLED,
+    "last_error": "",
+    "log_once": set(),
+}
 
 risk_guard_state: dict[str, object] = {}
 soft_guard_state: dict[str, float | bool] = {
@@ -286,6 +419,10 @@ margin_guard_state: dict[str, float | bool | str] = {
     "last_alert_status": "clear",
     "last_alert_ts": None,
     "last_alert_bucket": -1.0,
+}
+
+dynamic_var_unwind_state: dict[str, float | str | None] = {
+    "last_unwind": None,
 }
 
 counter_signal_tracker: dict[str, dict[str, float | int | str]] = {}
@@ -326,7 +463,158 @@ risk_profile_state: dict[str, object | None] = {
     "label": "Balanced growth",
     "applied_at": None,
     "settings": {},
+    "persona": None,
+    "persona_label": None,
+    "persona_description": None,
+    "persona_source": None,
+    "persona_risk_mode": None,
 }
+
+DEFAULT_PERSONA_KEY = "earth"
+
+PERSONA_PROFILES: dict[str, dict[str, object]] = {
+    "fire": {
+        "label": "Firestorm Aggressor",
+        "emoji": "🔥",
+        "tagline": "Leverages breakout momentum, stacking hard into explosive trends.",
+        "description": "Hyper-aggressive breakout hunter with minimal guardrails.",
+        "risk_preset": "high",
+        "regime_weights": {
+            "TRENDING": {
+                "momentum_trend": 0.36,
+                "breakout": 0.32,
+                "ma_crossover": 0.18,
+                "donchian_channel": 0.08,
+                "mean_reversion": 0.06,
+            },
+            "RANGING": {
+                "mean_reversion": 0.28,
+                "donchian_channel": 0.24,
+                "ma_crossover": 0.18,
+                "breakout": 0.16,
+                "momentum_trend": 0.14,
+            },
+            "VOLATILE": {
+                "breakout": 0.40,
+                "momentum_trend": 0.28,
+                "ma_crossover": 0.16,
+                "donchian_channel": 0.10,
+                "mean_reversion": 0.06,
+            },
+        },
+        "agent_overrides": {
+            "Breakout": {"priority": 6, "sl_mult": 2.2, "tp_mult": 3.4},
+            "Momentum Trend": {"priority": 6, "tp_mult": 2.6},
+            "MA Crossover": {"priority": 4, "params": {"fast_period": 4, "slow_period": 28}},
+            "Donchian Channel": {"priority": 3.2},
+            "Mean Reversion": {"priority": 1, "sl_mult": 2.4, "tp_mult": 3.0},
+            "Impulse Scalper": {
+                "priority": 2.8,
+                "params": {"vol_floor": 0.00035},
+                "enabled": True,
+                "modes": ("high",),
+            },
+        },
+    },
+    "earth": {
+        "label": "Terra Guardian",
+        "emoji": "🌍",
+        "tagline": "Balances momentum and mean reversion with adaptive guardrails.",
+        "description": "Balanced, adaptive blend for everyday trading.",
+        "risk_preset": "medium",
+        "regime_weights": {
+            "TRENDING": {
+                "momentum_trend": 0.32,
+                "ma_crossover": 0.30,
+                "breakout": 0.20,
+                "donchian_channel": 0.10,
+                "mean_reversion": 0.08,
+            },
+            "RANGING": {
+                "mean_reversion": 0.34,
+                "donchian_channel": 0.26,
+                "ma_crossover": 0.18,
+                "momentum_trend": 0.12,
+                "breakout": 0.10,
+            },
+            "VOLATILE": {
+                "breakout": 0.34,
+                "momentum_trend": 0.26,
+                "ma_crossover": 0.20,
+                "donchian_channel": 0.14,
+                "mean_reversion": 0.06,
+            },
+        },
+        "agent_overrides": {
+            "Breakout": {"priority": 3.5},
+            "Momentum Trend": {"priority": 5},
+            "MA Crossover": {"priority": 3.2, "params": {"fast_period": 6, "slow_period": 35}},
+            "Donchian Channel": {"priority": 3.8},
+            "Mean Reversion": {"priority": 2.4, "tp_mult": 3.6},
+            "Impulse Scalper": {
+                "priority": 1.8,
+                "params": {"vol_floor": 0.00045},
+                "enabled": True,
+                "modes": ("medium", "high"),
+            },
+        },
+    },
+    "ice": {
+        "label": "Frost Sentinel",
+        "emoji": "❄️",
+        "tagline": "Capital preservation specialist that prefers disciplined fades.",
+        "description": "Ultra-controlled persona favoring mean reversion and tight risk.",
+        "risk_preset": "low",
+        "regime_weights": {
+            "TRENDING": {
+                "ma_crossover": 0.32,
+                "momentum_trend": 0.24,
+                "donchian_channel": 0.18,
+                "mean_reversion": 0.18,
+                "breakout": 0.08,
+            },
+            "RANGING": {
+                "mean_reversion": 0.42,
+                "donchian_channel": 0.28,
+                "ma_crossover": 0.16,
+                "momentum_trend": 0.08,
+                "breakout": 0.06,
+            },
+            "VOLATILE": {
+                "momentum_trend": 0.26,
+                "breakout": 0.22,
+                "ma_crossover": 0.20,
+                "donchian_channel": 0.18,
+                "mean_reversion": 0.14,
+            },
+        },
+        "agent_overrides": {
+            "Breakout": {"priority": 1.6, "tp_mult": 2.4, "sl_mult": 2.8},
+            "Momentum Trend": {"priority": 3.4, "tp_mult": 1.8},
+            "MA Crossover": {"priority": 3.2, "params": {"fast_period": 8, "slow_period": 50}},
+            "Donchian Channel": {"priority": 4.2, "tp_mult": 3.8},
+            "Mean Reversion": {"priority": 4.6, "tp_mult": 4.6, "sl_mult": 2.5},
+            "Impulse Scalper": {"enabled": False},
+        },
+    },
+}
+
+PERSONA_BY_RISK_MODE: dict[str, str] = {
+    "low": "ice",
+    "medium": "earth",
+    "high": "fire",
+}
+
+RISK_PRESET_EMOJI: dict[str, str] = {
+    "low": "❄️",
+    "medium": "🌍",
+    "high": "🔥",
+}
+
+agent_definitions: list[dict[str, object]] = []
+agent_dict: dict[str, list[dict[str, object]]] = {}
+
+REQUESTED_PERSONA_KEY, REQUESTED_PERSONA_SOURCE = _detect_requested_persona()
 
 
 def persist_risk_profile_state() -> None:
@@ -336,6 +624,21 @@ def persist_risk_profile_state() -> None:
         "applied_at": risk_profile_state.get("applied_at"),
         "settings": risk_profile_state.get("settings"),
     }
+    persona_key = risk_profile_state.get("persona")
+    if persona_key:
+        payload["persona"] = persona_key
+        persona_label = risk_profile_state.get("persona_label")
+        persona_description = risk_profile_state.get("persona_description")
+        persona_risk_mode = risk_profile_state.get("persona_risk_mode")
+        persona_source = risk_profile_state.get("persona_source")
+        if persona_label:
+            payload["persona_label"] = persona_label
+        if persona_description:
+            payload["persona_description"] = persona_description
+        if persona_risk_mode:
+            payload["persona_risk_mode"] = persona_risk_mode
+        if persona_source:
+            payload["persona_source"] = persona_source
     try:
         with open(RISK_PROFILE_STATE_FILE, "w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=2, sort_keys=True)
@@ -367,6 +670,23 @@ def load_risk_profile_state(default_mode: str = "medium") -> None:
 
     applied_at = data.get("applied_at")
     apply_risk_preset(mode, persist=False, silent=True, applied_at=applied_at)
+
+    stored_persona = _normalize_persona_key(data.get("persona"))
+    if stored_persona:
+        risk_profile_state["persona"] = stored_persona
+        risk_profile_state["persona_label"] = data.get("persona_label")
+        risk_profile_state["persona_description"] = data.get("persona_description")
+        stored_risk_mode = data.get("persona_risk_mode")
+        risk_profile_state["persona_risk_mode"] = (
+            str(stored_risk_mode).lower() if stored_risk_mode else None
+        )
+        risk_profile_state["persona_source"] = data.get("persona_source")
+    else:
+        risk_profile_state["persona"] = None
+        risk_profile_state["persona_label"] = None
+        risk_profile_state["persona_description"] = None
+        risk_profile_state["persona_risk_mode"] = None
+        risk_profile_state["persona_source"] = None
 
 def register_telegram_chat(chat_id: int) -> None:
     if not isinstance(chat_id, int):
@@ -557,14 +877,39 @@ def build_position_snapshot(position, now_utc: datetime) -> dict[str, object]:
     time_open = getattr(position, 'time', None)
     open_time_str = "n/a"
     age_str = "n/a"
-    if time_open:
+    open_dt: datetime | None = None
+    if isinstance(time_open, datetime):
+        open_dt = time_open if time_open.tzinfo else time_open.replace(tzinfo=timezone.utc)
+    elif isinstance(time_open, (int, float)):
+        timestamp = float(time_open)
+        # Some brokers expose milliseconds in the integer field
+        if timestamp > 10**11:  # greater than ~3 millennia in seconds -> assume ms
+            timestamp /= 1000.0
         try:
-            open_dt = datetime.fromtimestamp(time_open, tz=timezone.utc)
-            open_time_str = open_dt.strftime('%Y-%m-%d %H:%M:%S')
-            age_str = _format_timedelta_compact(now_utc - open_dt)
-        except Exception:
-            open_time_str = "n/a"
-            age_str = "n/a"
+            open_dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            open_dt = None
+    elif isinstance(time_open, str):
+        try:
+            parsed = datetime.fromisoformat(time_open)
+            open_dt = parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        except ValueError:
+            open_dt = None
+
+    if open_dt is None:
+        time_open_msc = getattr(position, 'time_msc', None)
+        if isinstance(time_open_msc, (int, float)) and time_open_msc:
+            try:
+                open_dt = datetime.fromtimestamp(float(time_open_msc) / 1000.0, tz=timezone.utc)
+            except (OSError, OverflowError, ValueError):
+                open_dt = None
+
+    if open_dt is not None:
+        open_time_str = open_dt.strftime('%Y-%m-%d %H:%M:%S')
+        age_delta = now_utc - open_dt
+        if age_delta.total_seconds() < 0:
+            age_delta = timedelta(seconds=0)
+        age_str = _format_timedelta_compact(age_delta)
 
     comment = _clean_comment(getattr(position, 'comment', ''))
     magic = int(getattr(position, 'magic', 0) or 0)
@@ -1549,13 +1894,28 @@ def enforce_kill_switch() -> None:
 def format_risk_profile_summary(line_prefix: str = "• ") -> str:
     mode = str(risk_profile_state.get("mode") or "unknown").upper()
     label = str(risk_profile_state.get("label") or "")
-    lines = [
+    persona_key = risk_profile_state.get("persona")
+    persona_label = str(risk_profile_state.get("persona_label") or "").strip()
+    persona_description = str(risk_profile_state.get("persona_description") or "").strip()
+    persona_source = str(risk_profile_state.get("persona_source") or "").strip()
+
+    lines: list[str] = []
+    if persona_key:
+        persona_display = persona_label or str(persona_key).title()
+        persona_line = f"{line_prefix}Persona: {persona_display} ({str(persona_key).upper()})"
+        if persona_source:
+            persona_line += f" [{persona_source}]"
+        if persona_description:
+            persona_line += f" — {persona_description}"
+        lines.append(persona_line)
+
+    lines.extend([
         f"{line_prefix}Risk mode: {mode} — {label}",
         f"{line_prefix}Account risk/trade: {ACCOUNT_RISK_PER_TRADE:.1%}",
         f"{line_prefix}Risk multiplier cap: x{RISK_MULTIPLIER_MAX:.2f}",
         f"{line_prefix}Soft guard limit: {SOFT_GUARD_LIMIT:.0%} (alert {SOFT_GUARD_ALERT:.0%})",
         f"{line_prefix}Margin block: {MARGIN_USAGE_BLOCK:.0%} (throttle {MARGIN_USAGE_THROTTLE:.0%})",
-    ]
+    ])
     if EQUITY_GOVERNOR_ENABLED:
         lines.append(
             f"{line_prefix}Equity governor: warn {EQUITY_GOVERNOR_WARN:.1%} | clamp {EQUITY_GOVERNOR_HARD:.1%} | scale x{EQUITY_GOVERNOR_MIN_FACTOR:.2f}→x{EQUITY_GOVERNOR_MAX_FACTOR:.2f}"
@@ -1729,6 +2089,152 @@ def format_active_positions_summary(
     if summary_line:
         lines.append(f"{line_prefix}Breakdown: {summary_line}")
     return "\n".join(lines)
+
+
+def collect_position_state_metrics(
+    positions: Iterable[Any] | None = None,
+    *,
+    account_info: Any | None = None,
+    equity: float | None = None,
+    scan: int | None = None,
+    max_symbols: int = 3,
+) -> dict[str, object]:
+    """Aggregate open-position state for telemetry and feature engineering."""
+
+    position_list = list(positions or [])
+    total_positions = len(position_list)
+
+    buy_volume = 0.0
+    sell_volume = 0.0
+    floating_profit = 0.0
+    floating_swap = 0.0
+    floating_commission = 0.0
+
+    symbol_stats: dict[str, dict[str, float]] = defaultdict(
+        lambda: {"total": 0.0, "buy": 0.0, "sell": 0.0, "profit": 0.0}
+    )
+
+    for pos in position_list:
+        volume = float(getattr(pos, "volume", 0.0) or 0.0)
+        if volume <= 0:
+            continue
+
+        profit = float(getattr(pos, "profit", 0.0) or 0.0)
+        swap = float(getattr(pos, "swap", 0.0) or 0.0)
+        commission = float(getattr(pos, "commission", 0.0) or 0.0)
+        symbol = str(getattr(pos, "symbol", "") or "UNKNOWN")
+        bucket_key = _normalize_symbol_key(symbol) or symbol
+        bucket = symbol_stats[bucket_key]
+        bucket["total"] += volume
+        bucket["profit"] += profit
+
+        direction = getattr(pos, "type", None)
+        if direction == mt5.POSITION_TYPE_SELL:
+            bucket["sell"] += volume
+            sell_volume += volume
+        else:
+            bucket["buy"] += volume
+            buy_volume += volume
+
+        floating_profit += profit
+        floating_swap += swap
+        floating_commission += commission
+
+    total_volume = buy_volume + sell_volume
+    net_volume = buy_volume - sell_volume
+    unique_symbols = len(symbol_stats)
+
+    top_symbol = None
+    top_symbol_volume = 0.0
+    top_symbol_net = 0.0
+    top_symbol_profit = 0.0
+    symbol_concentration = 0.0
+
+    if symbol_stats:
+        top_entry = max(symbol_stats.items(), key=lambda item: item[1]["total"])
+        top_symbol = top_entry[0]
+        top_stats = top_entry[1]
+        top_symbol_volume = top_stats["total"]
+        top_symbol_net = top_stats["buy"] - top_stats["sell"]
+        top_symbol_profit = top_stats["profit"]
+        if total_volume > 0:
+            symbol_concentration = min(1.0, max(0.0, top_symbol_volume / total_volume))
+
+    equity_val = float(equity) if equity is not None else 0.0
+    balance_val = 0.0
+    margin_used = 0.0
+    margin_free = 0.0
+    margin_level = 0.0
+
+    if account_info is not None:
+        balance_val = float(getattr(account_info, "balance", 0.0) or 0.0)
+        account_equity = getattr(account_info, "equity", None)
+        if equity_val <= 0 and account_equity is not None:
+            try:
+                equity_val = float(account_equity)
+            except (TypeError, ValueError):
+                equity_val = 0.0
+        margin_used = float(getattr(account_info, "margin", 0.0) or 0.0)
+        margin_free = float(getattr(account_info, "margin_free", 0.0) or 0.0)
+        margin_level = float(getattr(account_info, "margin_level", 0.0) or 0.0)
+
+    margin_usage_ratio = 0.0
+    equity_denominator = equity_val if equity_val else (balance_val if balance_val else 0.0)
+    if equity_denominator > 0:
+        margin_usage_ratio = max(0.0, min(10.0, margin_used / equity_denominator))
+
+    exposures_by_currency = _collect_currency_notional(position_list) if position_list else {}
+    currency_exposure_total = sum(float(value or 0.0) for value in exposures_by_currency.values())
+    currency_exposure_ratio = 0.0
+    top_currency = None
+    top_currency_notional = 0.0
+
+    if exposures_by_currency:
+        top_currency, top_currency_notional = max(
+            exposures_by_currency.items(), key=lambda item: abs(float(item[1] or 0.0))
+        )
+        if equity_val > 0:
+            currency_exposure_ratio = max(0.0, min(10.0, float(top_currency_notional) / equity_val))
+
+    payload: dict[str, object] = {
+        "scan": int(scan) if scan is not None else None,
+        "total_positions": total_positions,
+        "unique_symbols": unique_symbols,
+        "total_volume": round(total_volume, 6),
+        "buy_volume": round(buy_volume, 6),
+        "sell_volume": round(sell_volume, 6),
+        "net_volume": round(net_volume, 6),
+        "floating_profit": round(floating_profit, 6),
+        "floating_swap": round(floating_swap, 6),
+        "floating_commission": round(floating_commission, 6),
+        "balance": round(balance_val, 6),
+        "equity": round(equity_val, 6),
+        "margin_used": round(margin_used, 6),
+        "margin_free": round(margin_free, 6),
+        "margin_level": round(margin_level, 6),
+        "margin_usage_ratio": round(margin_usage_ratio, 6),
+        "symbol_concentration": round(symbol_concentration, 6),
+        "top_symbol": top_symbol,
+        "top_symbol_volume": round(top_symbol_volume, 6),
+        "top_symbol_net_volume": round(top_symbol_net, 6),
+        "top_symbol_profit": round(top_symbol_profit, 6),
+        "currency_exposure_total": round(currency_exposure_total, 6),
+        "currency_exposure_ratio": round(currency_exposure_ratio, 6),
+        "top_currency": top_currency,
+        "top_currency_notional": round(float(top_currency_notional), 6) if top_currency_notional else 0.0,
+    }
+
+    if max_symbols and max_symbols > 0 and symbol_stats:
+        top_symbols = sorted(
+            symbol_stats.items(), key=lambda item: item[1]["total"], reverse=True
+        )[: max_symbols]
+        for idx, (symbol_key, stats) in enumerate(top_symbols, start=1):
+            payload[f"symbol_{idx}"] = symbol_key
+            payload[f"symbol_{idx}_volume"] = round(stats["total"], 6)
+            payload[f"symbol_{idx}_net_volume"] = round(stats["buy"] - stats["sell"], 6)
+            payload[f"symbol_{idx}_profit"] = round(stats["profit"], 6)
+
+    return payload
 
 
 def format_exposure_summary(
@@ -2243,6 +2749,77 @@ def compose_performance_snapshot() -> str:
     snapshot = "\n".join(lines)
     return truncate_for_telegram(snapshot)
 
+def _format_percent(value: object | None) -> str:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return "n/a"
+    return f"{numeric * 100:.1f}%"
+
+
+def _log_risk_persona_status(
+    preset_key: str,
+    preset: Mapping[str, object],
+    *,
+    persona_key: str | None,
+) -> None:
+    emoji = RISK_PRESET_EMOJI.get(preset_key, "🎚️")
+    label = str(preset.get("label") or preset_key.upper())
+    description = str(preset.get("description") or "").strip()
+    settings = preset.get("settings") if isinstance(preset.get("settings"), Mapping) else {}
+
+    account_risk = settings.get("ACCOUNT_RISK_PER_TRADE") if isinstance(settings, Mapping) else None
+    risk_multiplier = settings.get("RISK_MULTIPLIER_MAX") if isinstance(settings, Mapping) else None
+    relief_multiplier = settings.get("RISK_MULTIPLIER_RELIEF_MAX") if isinstance(settings, Mapping) else None
+    soft_guard_limit = settings.get("SOFT_GUARD_LIMIT") if isinstance(settings, Mapping) else None
+    margin_block = settings.get("MARGIN_USAGE_BLOCK") if isinstance(settings, Mapping) else None
+    daily_max_dd = settings.get("DAILY_MAX_DRAWDOWN") if isinstance(settings, Mapping) else None
+    weekly_max_dd = settings.get("WEEKLY_MAX_DRAWDOWN") if isinstance(settings, Mapping) else None
+    var_target = settings.get("DYNAMIC_VAR_TARGET") if isinstance(settings, Mapping) else None
+
+    persona_config = PERSONA_PROFILES.get(persona_key or "", {})
+    persona_label = persona_config.get("label") if isinstance(persona_config, Mapping) else None
+    persona_emoji = persona_config.get("emoji") if isinstance(persona_config, Mapping) else None
+    persona_tagline = persona_config.get("tagline") if isinstance(persona_config, Mapping) else None
+
+    print(f"{emoji} Risk preset active: {label} ({preset_key.upper()})")
+    if description:
+        print(f"   ↳ {description}")
+
+    risk_line = (
+        f"   ↳ Risk per trade { _format_percent(account_risk) } | "
+        f"Multiplier max {float(risk_multiplier):.2f} / relief {float(relief_multiplier):.2f}"
+        if account_risk is not None and risk_multiplier is not None and relief_multiplier is not None
+        else None
+    )
+    if risk_line is None and account_risk is not None:
+        risk_line = f"   ↳ Risk per trade { _format_percent(account_risk) }"
+    if risk_line is None and risk_multiplier is not None:
+        risk_line = f"   ↳ Multiplier max {float(risk_multiplier):.2f}"
+    if risk_line:
+        print(risk_line)
+
+    guard_bits: list[str] = []
+    if soft_guard_limit is not None:
+        guard_bits.append(f"Soft limit { _format_percent(soft_guard_limit) }")
+    if margin_block is not None:
+        guard_bits.append(f"Margin block { _format_percent(margin_block) }")
+    if var_target is not None:
+        guard_bits.append(f"VaR target { _format_percent(var_target) }")
+    if daily_max_dd is not None:
+        guard_bits.append(f"Daily DD cap { _format_percent(daily_max_dd) }")
+    if weekly_max_dd is not None:
+        guard_bits.append(f"Weekly DD cap { _format_percent(weekly_max_dd) }")
+    if guard_bits:
+        print("   ↳ Guards: " + " | ".join(guard_bits))
+
+    if persona_label or persona_key:
+        persona_symbol = persona_emoji or RISK_PRESET_EMOJI.get(persona_key or "", "🧬")
+        label_text = persona_label or (persona_key.upper() if persona_key else "Neutral")
+        print(f"   ↳ Persona: {persona_symbol} {label_text}")
+        if persona_tagline:
+            print(f"      · {persona_tagline}")
+
 
 def apply_risk_preset(
     preset_name: str,
@@ -2250,6 +2827,7 @@ def apply_risk_preset(
     persist: bool = True,
     silent: bool = False,
     applied_at: str | None = None,
+    sync_persona: bool = True,
 ) -> tuple[bool, str]:
     preset_key = preset_name.lower()
     preset = RISK_PRESETS.get(preset_key)
@@ -2268,6 +2846,7 @@ def apply_risk_preset(
     timestamp = applied_at or datetime.now(timezone.utc).isoformat(timespec="seconds")
     risk_profile_state["applied_at"] = timestamp
     risk_profile_state["settings"] = dict(settings)
+    _reset_risk_multiplier_state()
     _LOW_VOLATILITY_GUARD_STATE.clear()
 
     account_info = mt5.account_info()
@@ -2307,11 +2886,61 @@ def apply_risk_preset(
     ]
     summary = "\n".join(line for line in summary_lines if line)
     changed = previous_mode != preset_key
+
+    persona_aligned = False
+    if sync_persona:
+        base_defs_ready = "BASE_AGENT_DEFINITIONS" in globals()
+        target_persona = PERSONA_BY_RISK_MODE.get(preset_key)
+        current_persona = _normalize_persona_key(risk_profile_state.get("persona"))
+        persona_source = str(risk_profile_state.get("persona_source") or "").strip()
+
+        if target_persona:
+            should_align = (
+                changed
+                or current_persona != target_persona
+                or persona_source != "risk_preset"
+            )
+
+            if base_defs_ready and should_align:
+                activate_persona(
+                    target_persona,
+                    source="risk_preset",
+                    persist=persist,
+                    announce=not silent,
+                    reapply_risk=False,
+                )
+                persona_aligned = True
+            elif not base_defs_ready and should_align:
+                profile = PERSONA_PROFILES.get(target_persona, {})
+                risk_profile_state["persona"] = target_persona
+                risk_profile_state["persona_label"] = profile.get("label")
+                risk_profile_state["persona_description"] = profile.get("description")
+                risk_profile_state["persona_source"] = "risk_preset"
+                risk_profile_state["persona_risk_mode"] = preset_key
+        elif persona_source == "risk_preset" and (current_persona or changed):
+            if base_defs_ready:
+                activate_persona(
+                    None,
+                    source="risk_preset",
+                    persist=persist,
+                    announce=not silent,
+                    reapply_risk=False,
+                )
+                persona_aligned = True
+            elif not base_defs_ready:
+                risk_profile_state["persona"] = None
+                risk_profile_state["persona_label"] = None
+                risk_profile_state["persona_description"] = None
+                risk_profile_state["persona_source"] = "risk_preset"
+                risk_profile_state["persona_risk_mode"] = preset_key
+
     if not silent:
         if changed:
             print(f"🎚️ Risk preset changed to {preset_key.upper()} — {preset.get('label')}")
         else:
             print(f"ℹ️ Risk preset {preset_key.upper()} reapplied without change")
+        current_persona_for_log = _normalize_persona_key(risk_profile_state.get("persona"))
+        _log_risk_persona_status(preset_key, preset, persona_key=current_persona_for_log)
         telemetry.emit(
             "risk_preset_applied",
             preset=preset_key,
@@ -2319,10 +2948,25 @@ def apply_risk_preset(
             equity_baseline=equity_baseline,
             dynamic_var_enabled=DYNAMIC_VAR_ENABLED,
             equity_governor_enabled=EQUITY_GOVERNOR_ENABLED,
+            account_risk=round(ACCOUNT_RISK_PER_TRADE, 4),
+            risk_multiplier_max=round(RISK_MULTIPLIER_MAX, 4),
+            risk_multiplier_relief=round(RISK_MULTIPLIER_RELIEF_MAX, 4),
+            scan_interval=SCAN_INTERVAL_SECONDS,
+            min_session_priority=MIN_SESSION_PRIORITY,
+            alpha_session_priority=ALPHA_SURGE_MIN_SESSION_PRIORITY,
+            soft_guard_limit=round(SOFT_GUARD_LIMIT, 4),
+            margin_usage_block=round(MARGIN_USAGE_BLOCK, 4),
+            low_vol_skip=round(LOW_VOL_SKIP_THRESHOLD, 4),
+            low_vol_scale=round(LOW_VOL_RISK_SCALE, 4),
+            micro_guard_min=round(MICRO_MOMENTUM_GUARD_MIN, 4),
+            high_micro_guard_min=round(HIGH_RISK_MICRO_GUARD_MIN, 4),
+            persona=risk_profile_state.get("persona"),
+            persona_label=risk_profile_state.get("persona_label"),
         )
 
     if persist:
-        persist_risk_profile_state()
+        if not (sync_persona and persona_aligned):
+            persist_risk_profile_state()
     return changed, summary
 
 
@@ -2766,6 +3410,35 @@ def apply_risk_guard_to_multiplier(multiplier: float) -> float:
 
     adjusted = multiplier * combined_factor
 
+    boost_factor = 1.0
+    boost_reason = ""
+    mode = str(risk_profile_state.get("mode") or "").lower()
+    margin_usage = float(margin_guard_state.get("usage", 0.0) or 0.0)
+    free_ratio = float(margin_guard_state.get("free_ratio", 1.0) or 1.0)
+
+    if mode == "high":
+        guard_ok = guard_factor >= 0.95
+        soft_ok = soft_factor >= 0.9
+        margin_ok = margin_factor >= 0.9
+        dynamic_ok = dynamic_var_factor >= 0.95
+        equity_ok = equity_factor >= 0.95
+        if guard_ok and soft_ok and margin_ok and dynamic_ok and equity_ok and margin_usage <= 0.55 and free_ratio >= 0.5:
+            margin_relief = max(0.0, (0.55 - margin_usage) * 0.45)
+            var_tailwind = max(0.0, dynamic_var_factor - 0.95) * 0.2
+            equity_tailwind = max(0.0, equity_factor - 0.95) * 0.2
+            boost_factor = min(1.0 + 0.05 + margin_relief + var_tailwind + equity_tailwind, 1.32)
+            boost_reason = "high_mode_margin_relief"
+        elif guard_ok and dynamic_var_factor >= 1.05 and equity_factor >= 1.02 and margin_usage <= 0.65:
+            boost_factor = min(1.0 + min(0.2, (dynamic_var_factor - 1.0) * 0.35), 1.2)
+            boost_reason = "high_mode_var_tailwind"
+    elif mode == "medium":
+        if guard_factor >= 1.02 and dynamic_var_factor >= 1.02 and margin_usage <= 0.6:
+            boost_factor = min(1.0 + min(0.12, (dynamic_var_factor - 1.0) * 0.25), 1.12)
+            boost_reason = "balanced_tailwind"
+
+    if boost_factor > 1.0:
+        adjusted *= boost_factor
+
     min_bound = RISK_MULTIPLIER_MIN
     if RISK_GUARD_ENABLED and guard_factor < 1.0:
         min_bound = min(min_bound, RISK_RECOVERY_MIN_FACTOR)
@@ -2817,6 +3490,30 @@ def apply_risk_guard_to_multiplier(multiplier: float) -> float:
         target = min(target * dynamic_var_factor, RISK_MULTIPLIER_MAX * DYNAMIC_VAR_MAX_FACTOR)
 
     adjusted = max(min_bound, min(target, adjusted))
+
+    previous_factor = float(risk_multiplier_state.get("last_boost_factor", 1.0) or 1.0)
+    previous_reason = str(risk_multiplier_state.get("last_boost_reason", ""))
+    if boost_factor <= 1.0:
+        boost_reason = ""
+    risk_multiplier_state["last_boost_factor"] = round(boost_factor, 4)
+    risk_multiplier_state["last_boost_reason"] = boost_reason
+    if boost_factor > 1.0 and boost_reason:
+        if abs(boost_factor - previous_factor) > 0.01 or boost_reason != previous_reason:
+            telemetry.emit(
+                "risk_multiplier_boost",
+                factor=round(boost_factor, 4),
+                reason=boost_reason,
+                guard_factor=round(guard_factor, 4),
+                soft_factor=round(soft_factor, 4),
+                margin_factor=round(margin_factor, 4),
+                dynamic_var_factor=round(dynamic_var_factor, 4),
+                equity_factor=round(equity_factor, 4),
+                margin_usage=round(margin_usage, 4),
+                free_margin_ratio=round(free_ratio, 4),
+                combined=round(combined_factor, 4),
+            )
+            risk_multiplier_state["last_boost_emit"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
     return round(adjusted, 2)
 
 
@@ -2874,9 +3571,253 @@ def monitor_closed_positions():
             with open(processed_deals_file, 'a') as f:
                 for deal_id in new_processed:
                     f.write(f"{deal_id}\n")
+
+        processed_trades_file = "processed_trades.txt"
+        try:
+            with open(processed_trades_file, 'r') as f:
+                processed_trades = set(line.strip() for line in f)
+        except FileNotFoundError:
+            processed_trades = set()
+
+        history_positions_get = getattr(mt5, "history_positions_get", None)
+        closed_positions: list[Any] = []
+        if callable(history_positions_get):
+            try:
+                closed_positions = history_positions_get(from_date, to_date) or []
+            except Exception as exc:
+                _log_once("history_positions_get_error", f"⚠️  Failed to retrieve MT5 closed positions: {exc}")
+                closed_positions = _fallback_closed_positions_by_deals(from_date, to_date)
+        else:
+            _log_once(
+                "history_positions_get_missing",
+                "ℹ️  MetaTrader5.history_positions_get unavailable; using deal history fallback for closed position telemetry.",
+            )
+            closed_positions = _fallback_closed_positions_by_deals(from_date, to_date)
+
+        if not closed_positions:
+            closed_positions = _fallback_closed_positions_by_deals(from_date, to_date)
+
+        new_trades: list[str] = []
+        for position in closed_positions:
+            ticket = str(getattr(position, 'ticket', '') or '')
+            if not ticket or ticket in processed_trades:
+                continue
+
+            trade_payload = _build_trade_closed_payload(position)
+            telemetry.emit("trade_closed", **trade_payload)
+            new_trades.append(ticket)
+
+        if new_trades:
+            with open(processed_trades_file, 'a', encoding='utf-8') as handle:
+                for ticket in new_trades:
+                    handle.write(f"{ticket}\n")
                     
     except Exception as e:
         print(f"Error monitoring closed positions: {e}")
+
+
+def _fallback_closed_positions_by_deals(from_date: datetime, to_date: datetime) -> list[Any]:
+    """Reconstruct closed positions using deal history when positions history is unavailable."""
+    history_deals_get = getattr(mt5, "history_deals_get", None)
+    if not callable(history_deals_get):
+        return []
+
+    try:
+        deals = history_deals_get(from_date, to_date) or []
+    except Exception as exc:
+        _log_once("history_deals_get_error", f"⚠️  Failed to retrieve MT5 deal history: {exc}")
+        return []
+
+    if not deals:
+        return []
+
+    grouped_deals: dict[int, list[Any]] = defaultdict(list)
+    for deal in deals:
+        position_key = int(getattr(deal, "position_id", 0) or getattr(deal, "position", 0) or getattr(deal, "ticket", 0) or 0)
+        if not position_key:
+            continue
+        grouped_deals[position_key].append(deal)
+
+    fallback_positions: list[Any] = []
+    deal_entry_in = getattr(mt5, "DEAL_ENTRY_IN", 0)
+    deal_entry_out = getattr(mt5, "DEAL_ENTRY_OUT", 1)
+    deal_type_buy = getattr(mt5, "DEAL_TYPE_BUY", 0)
+    deal_type_sell = getattr(mt5, "DEAL_TYPE_SELL", 1)
+
+    for position_key, position_deals in grouped_deals.items():
+        exit_deals = [d for d in position_deals if getattr(d, "entry", None) == deal_entry_out]
+        if not exit_deals:
+            continue
+
+        entry_deals = [d for d in position_deals if getattr(d, "entry", None) == deal_entry_in]
+        entry_deal = min(entry_deals, key=lambda d: getattr(d, "time", 0)) if entry_deals else exit_deals[0]
+        exit_deal = max(exit_deals, key=lambda d: getattr(d, "time", 0))
+
+        volume = sum(float(getattr(d, "volume", 0.0) or 0.0) for d in entry_deals)
+        if volume <= 0.0:
+            volume = float(getattr(exit_deal, "volume", 0.0) or 0.0)
+
+        deal_type = getattr(entry_deal, "type", getattr(exit_deal, "type", None))
+        if deal_type == deal_type_buy:
+            position_type = getattr(mt5, "POSITION_TYPE_BUY", 0)
+        elif deal_type == deal_type_sell:
+            position_type = getattr(mt5, "POSITION_TYPE_SELL", 1)
+        else:
+            position_type = getattr(mt5, "POSITION_TYPE_BUY", 0) if float(getattr(exit_deal, "price", 0.0) or 0.0) >= float(getattr(entry_deal, "price", 0.0) or 0.0) else getattr(mt5, "POSITION_TYPE_SELL", 1)
+
+        comment = (getattr(entry_deal, "comment", "") or getattr(exit_deal, "comment", "") or "").strip()
+        magic = int(getattr(entry_deal, "magic", getattr(exit_deal, "magic", 0)) or 0)
+        ticket = int(getattr(exit_deal, "position_id", getattr(exit_deal, "ticket", 0)) or position_key)
+
+        profit = sum(float(getattr(d, "profit", 0.0) or 0.0) for d in exit_deals)
+        swap = sum(float(getattr(d, "swap", 0.0) or 0.0) for d in exit_deals)
+        commission = sum(float(getattr(d, "commission", 0.0) or 0.0) for d in exit_deals)
+
+        fallback_positions.append(
+            SimpleNamespace(
+                symbol=getattr(exit_deal, "symbol", "") or "UNKNOWN",
+                volume=volume,
+                type=position_type,
+                comment=comment,
+                magic=magic,
+                ticket=ticket,
+                position_id=ticket,
+                time=getattr(entry_deal, "time", getattr(exit_deal, "time", None)),
+                time_close=getattr(exit_deal, "time", None),
+                price_open=float(getattr(entry_deal, "price", getattr(exit_deal, "price", 0.0)) or 0.0),
+                price_current=float(getattr(exit_deal, "price", 0.0) or 0.0),
+                price_close=float(getattr(exit_deal, "price", 0.0) or 0.0),
+                profit=profit,
+                swap=swap,
+                commission=commission,
+                sl=None,
+                tp=None,
+            )
+        )
+
+    if fallback_positions:
+        _log_once(
+            "history_positions_deal_fallback",
+            "ℹ️  Emitting trade_closed telemetry via history_deals_get fallback.",
+        )
+
+    return fallback_positions
+
+
+def _build_trade_closed_payload(position) -> dict[str, object]:
+    symbol = getattr(position, 'symbol', 'UNKNOWN') or 'UNKNOWN'
+    volume = float(getattr(position, 'volume', 0.0) or 0.0)
+    direction = 'buy' if getattr(position, 'type', None) == mt5.POSITION_TYPE_BUY else 'sell'
+    comment = (getattr(position, 'comment', '') or '').strip()
+    magic = int(getattr(position, 'magic', 0) or 0)
+    ticket = int(getattr(position, 'ticket', 0) or 0)
+    position_id = int(getattr(position, 'position_id', ticket) or ticket)
+
+    entry_time_iso = _timestamp_to_iso(getattr(position, 'time', None))
+    exit_time_iso = _timestamp_to_iso(getattr(position, 'time_close', None))
+    duration_seconds = None
+    entry_dt = _timestamp_to_datetime(getattr(position, 'time', None))
+    exit_dt = _timestamp_to_datetime(getattr(position, 'time_close', None))
+    if entry_dt and exit_dt:
+        duration_seconds = max(0, int((exit_dt - entry_dt).total_seconds()))
+
+    price_open = float(getattr(position, 'price_open', 0.0) or 0.0)
+    price_close = float(getattr(position, 'price_current', 0.0) or 0.0)
+    if hasattr(position, 'price_close'):
+        try:
+            price_close = float(getattr(position, 'price_close', price_close) or price_close)
+        except Exception:
+            pass
+
+    symbol_info = mt5.symbol_info(symbol)
+    if symbol_info is None:
+        try:
+            mt5.symbol_select(symbol, True)
+        except Exception:
+            pass
+        symbol_info = mt5.symbol_info(symbol)
+    point = float(getattr(symbol_info, 'point', 0.0) or 0.0) if symbol_info else 0.0
+    digits = int(getattr(symbol_info, 'digits', 5) or 5) if symbol_info else 5
+    price_diff_points = None
+    if point and price_open and price_close:
+        raw_points = (price_close - price_open) / point
+        price_diff_points = raw_points if direction == 'buy' else -raw_points
+
+    profit = float(getattr(position, 'profit', 0.0) or 0.0)
+    swap = float(getattr(position, 'swap', 0.0) or 0.0)
+    commission = float(getattr(position, 'commission', 0.0) or 0.0)
+    net_result = profit + swap - commission
+
+    sl = getattr(position, 'sl', None)
+    tp = getattr(position, 'tp', None)
+
+    strategy_key, strategy_code = _decode_strategy_from_comment(comment)
+
+    return {
+        "ticket": ticket,
+        "position_id": position_id,
+        "symbol": symbol,
+        "direction": direction,
+        "volume": volume,
+        "entry_time": entry_time_iso,
+        "exit_time": exit_time_iso,
+        "duration_seconds": duration_seconds,
+        "price_open": round(price_open, digits) if price_open else price_open,
+        "price_close": round(price_close, digits) if price_close else price_close,
+        "price_diff_points": price_diff_points,
+        "profit": profit,
+        "swap": swap,
+        "commission": commission,
+        "net_result": net_result,
+        "stop_loss": sl,
+        "take_profit": tp,
+        "comment": comment,
+        "magic": magic,
+        "strategy_key": strategy_key,
+        "strategy_code": strategy_code,
+    }
+
+
+def _timestamp_to_iso(value: object) -> str | None:
+    dt_value = _timestamp_to_datetime(value)
+    if dt_value is None:
+        return None
+    return dt_value.isoformat()
+
+
+def _timestamp_to_datetime(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, (int, float)):
+        try:
+            ts = float(value)
+            if ts > 10**11:
+                ts /= 1000.0
+            return datetime.fromtimestamp(ts, tz=timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            return None
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value)
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
+def _decode_strategy_from_comment(comment: str) -> tuple[str | None, str | None]:
+    if not comment:
+        return None, None
+    match = re.match(r"^([A-Z]{1,3})([BS])\d{2}", comment)
+    if match:
+        code = match.group(1)
+        strategy_key = COMMENT_CODE_CACHE.get(code)
+        return strategy_key, code
+    if " P" in comment:
+        strategy_name = comment.split(" P")[0].replace('-', ' ').strip()
+        strategy_key = strategy_name.lower().replace(' ', '_') if strategy_name else None
+        return strategy_key, None
+    return None, None
 
 
 def get_strategy_performance_weight(strategy_name: str, symbol: str) -> float:
@@ -2900,10 +3841,7 @@ def get_strategy_performance_weight(strategy_name: str, symbol: str) -> float:
         return 1.0  # Neutral performance
 
 # Settings
-WEEKDAY_SYMBOLS: list[str] = ["EURUSD+", "USDJPY+", "GBPUSD+", "GBPJPY+", "XAUUSD+"]
-WEEKEND_SYMBOLS: list[str] = ["BTCUSD"]
-ALL_SYMBOLS: tuple[str, ...] = tuple(dict.fromkeys(WEEKDAY_SYMBOLS + WEEKEND_SYMBOLS))
-timeframe = mt5.TIMEFRAME_M15
+timeframe = PRIMARY_TIMEFRAME
 bars = 100  # Number of bars to fetch
 
 # Risk/target settings (ATR-based) - OPTIMIZED FROM BACKTESTING
@@ -2912,6 +3850,90 @@ SL_ATR_MULTIPLIER = 2.0  # Default fallback; individual strategies can override
 TP_ATR_MULTIPLIER = 2.0  # Default fallback; individual strategies can override
 RESPECT_STOPS_LEVEL = True  # Enforce broker minimal stop distance if provided
 ALLOW_HEDGING = False  # When False, wait for existing positions to close before taking opposite trades
+
+# Symbol-specific ATR multiplier overrides (apply before spread-based adjustments)
+SYMBOL_RISK_OVERRIDES: dict[str, dict[str, float]] = {
+    # Example tuned from recent BTC weekend review: slightly wider initial stop, more ambitious take-profit
+    "BTCUSD": {"sl_mult": 2.4, "tp_mult": 3.2},
+}
+
+# Symbol-specific sizing overrides (scale base risk or impose volume floors/ceilings)
+SYMBOL_SIZING_OVERRIDES: dict[str, dict[str, float]] = {
+    # Crypto margin requirements are extremely light; lean harder into BTC fills on aggressive preset.
+    "BTCUSD": {"risk_scale": 2.4, "min_volume": 0.05},
+}
+
+# Spread/ATR-aware dynamic adjustments
+SPREAD_RATIO_TP_BONUSES: tuple[tuple[float, float], ...] = (
+    (0.22, 0.8),   # Excellent liquidity → extend TP by +0.8× ATR
+    (0.30, 0.55),  # Solid liquidity → extend TP by +0.55× ATR
+    (0.38, 0.30),  # Decent liquidity → extend TP by +0.30× ATR
+)
+SPREAD_RATIO_SL_PADDING: tuple[tuple[float, float], ...] = (
+    (0.55, 0.25),  # Elevated spread → widen SL by +0.25× ATR for breathing room
+    (0.70, 0.40),  # High but acceptable spread → widen SL by +0.40× ATR
+)
+
+# Symbol-specific spread tolerances (raw points + ATR ratio caps)
+SYMBOL_SPREAD_OVERRIDES: dict[str, dict[str, float]] = {
+    # BTC quotes use 0.01 point size -> raw spread appears ~1700 points; allow generous headroom
+    "BTCUSD": {"points_limit": 2500.0, "atr_ratio_limit": 0.35},
+    # Metals typically trade with wider raw spreads; keep FX tighter via default.
+    "XAUUSD": {"points_limit": 160.0, "atr_ratio_limit": 0.60},
+    "XAGUSD": {"points_limit": 95.0, "atr_ratio_limit": 0.55},
+}
+
+
+def _normalize_symbol_key(symbol: str) -> str:
+    return symbol.upper().rstrip("+")
+
+
+def resolve_symbol_risk_overrides(symbol: str) -> dict[str, float]:
+    return SYMBOL_RISK_OVERRIDES.get(_normalize_symbol_key(symbol), {})
+
+
+def resolve_symbol_sizing_overrides(symbol: str | None) -> dict[str, float]:
+    if not symbol:
+        return {}
+    return SYMBOL_SIZING_OVERRIDES.get(_normalize_symbol_key(symbol), {})
+
+
+def adjust_stop_multipliers_for_spread(
+    sl_mult: float,
+    tp_mult: float,
+    spread_ratio: float | None,
+) -> tuple[float, float, list[str]]:
+    """Apply liquidity-sensitive adjustments to SL/TP multipliers."""
+
+    if spread_ratio is None:
+        return sl_mult, tp_mult, []
+
+    notes: list[str] = []
+    updated_sl = sl_mult
+    updated_tp = tp_mult
+
+    # Reward tighter spreads with richer RR
+    for threshold, bonus in SPREAD_RATIO_TP_BONUSES:
+        if spread_ratio <= threshold:
+            updated_tp += bonus
+            notes.append(f"tp+{bonus:.2f} (spread {spread_ratio:.2f})")
+            break
+
+    # Cushion stops if we are close to the allowed limit
+    for threshold, padding in SPREAD_RATIO_SL_PADDING:
+        if spread_ratio >= threshold:
+            updated_sl += padding
+            notes.append(f"sl+{padding:.2f} (spread {spread_ratio:.2f})")
+
+    return updated_sl, updated_tp, notes
+
+
+def resolve_symbol_spread_limits(symbol: str) -> tuple[float, float]:
+    overrides = SYMBOL_SPREAD_OVERRIDES.get(_normalize_symbol_key(symbol), {})
+    points_limit = float(overrides.get("points_limit", SPREAD_POINTS_LIMIT))
+    ratio_limit = float(overrides.get("atr_ratio_limit", SPREAD_ATR_RATIO_LIMIT))
+    return points_limit, ratio_limit
+
 
 # Counter-signal exit tuning (avoid sitting in drawdown when strong opposite signal persists)
 COUNTER_SIGNAL_EXIT_ENABLED = True
@@ -2992,20 +4014,20 @@ SOFT_GUARD_MIN_THROTTLE = 0.45    # Never risk below 45% sizing unless fully blo
 
 # Margin usage guard (prevent over-leveraging during stack builds)
 MARGIN_GUARD_ENABLED = True
-MARGIN_USAGE_THROTTLE = 0.52      # Begin throttling once >52% of equity is tied up in margin
-MARGIN_USAGE_BLOCK = 0.70         # Block new entries once margin usage crosses 70%
-MARGIN_FREE_RATIO_THROTTLE = 0.40 # Throttle if free margin drops below 40% of equity
-MARGIN_FREE_RATIO_BLOCK = 0.24    # Block new entries if free margin <24% of equity
-MARGIN_GUARD_MIN_THROTTLE = 0.40  # Lowest risk factor applied before blocking
-MARGIN_USAGE_RESUME = 0.60        # Usage must fall below 60% before resuming after a block
-MARGIN_FREE_RATIO_RESUME = 0.36   # Free margin must recover above 36% of equity to unblock
-MARGIN_USAGE_THROTTLE_RESUME = 0.48  # Usage must stay below 48% before clearing throttle state
-MARGIN_FREE_RATIO_THROTTLE_RESUME = 0.44  # Free margin resume threshold for throttle recovery
-MARGIN_GUARD_SEVERITY_EXPONENT = 1.35  # Curve severity to bite harder as usage worsens
-MARGIN_ENTRY_GUARD_MIN_FACTOR = 0.55  # Do not open fresh exposure when guard factor falls below 55%
-PYRAMID_GUARD_MIN_FACTOR = 0.65       # Require at least 65% guard factor before stacking positions
-MARGIN_ALERT_SEVERITY_THRESHOLD = 0.55  # Alert Telegram once severity crosses 55%
-MARGIN_ALERT_REPEAT_BUCKET = 0.10       # Re-alert every +10% severity when throttled
+MARGIN_USAGE_THROTTLE = 0.55      # Begin throttling once >55% of equity is tied up in margin
+MARGIN_USAGE_BLOCK = 0.74         # Block new entries once margin usage crosses 74%
+MARGIN_FREE_RATIO_THROTTLE = 0.36 # Throttle if free margin drops below 36% of equity
+MARGIN_FREE_RATIO_BLOCK = 0.22    # Block new entries if free margin <22% of equity
+MARGIN_GUARD_MIN_THROTTLE = 0.38  # Lowest risk factor applied before blocking
+MARGIN_USAGE_RESUME = 0.64        # Usage must fall below 64% before resuming after a block
+MARGIN_FREE_RATIO_RESUME = 0.34   # Free margin must recover above 34% of equity to unblock
+MARGIN_USAGE_THROTTLE_RESUME = 0.50  # Usage must stay below 50% before clearing throttle state
+MARGIN_FREE_RATIO_THROTTLE_RESUME = 0.40  # Free margin resume threshold for throttle recovery
+MARGIN_GUARD_SEVERITY_EXPONENT = 1.28  # Curve severity to bite harder as usage worsens
+MARGIN_ENTRY_GUARD_MIN_FACTOR = 0.52  # Do not open fresh exposure when guard factor falls below 52%
+PYRAMID_GUARD_MIN_FACTOR = 0.62       # Require at least 62% guard factor before stacking positions
+MARGIN_ALERT_SEVERITY_THRESHOLD = 0.60  # Alert Telegram once severity crosses 60%
+MARGIN_ALERT_REPEAT_BUCKET = 0.12       # Re-alert every +12% severity when throttled
 
 # Exposure caps (per-symbol lots + per-currency notional)
 EXPOSURE_CAPS_ENABLED = True
@@ -3041,13 +4063,13 @@ CORRELATION_RISK_GLOBAL_RELIEF = 0.0          # Relief applied to the final corr
 
 # Automated margin unwind safeguards
 MARGIN_UNWIND_ENABLED = True
-MARGIN_UNWIND_TRIGGER_THROTTLE = 0.72       # Start shedding exposure once guard throttles below 72%
-MARGIN_UNWIND_TRIGGER_SEVERITY = 0.45       # Or when severity climbs above 45%
-MARGIN_UNWIND_BLOCK_REDUCTION = 0.55        # Close at least 55% of lots when margin guard blocks entries
-MARGIN_UNWIND_MIN_REDUCTION = 0.18          # Minimum fraction of lots to trim during a throttle event
-MARGIN_UNWIND_MAX_REDUCTION = 0.70          # Never close more than 70% in one pass (avoid full flatten)
+MARGIN_UNWIND_TRIGGER_THROTTLE = 0.62       # Start shedding exposure once guard throttles below 62%
+MARGIN_UNWIND_TRIGGER_SEVERITY = 0.58       # Or when severity climbs above 58%
+MARGIN_UNWIND_BLOCK_REDUCTION = 0.45        # Close at least 45% of lots when margin guard blocks entries
+MARGIN_UNWIND_MIN_REDUCTION = 0.14          # Minimum fraction of lots to trim during a throttle event
+MARGIN_UNWIND_MAX_REDUCTION = 0.58          # Never close more than 58% in one pass (avoid full flatten)
 MARGIN_UNWIND_MIN_VOLUME = MIN_LOT_SIZE     # Guarantee we trim at least the broker minimum lot size
-MARGIN_UNWIND_COOLDOWN_SECONDS = 120        # Wait two minutes before attempting another unwind pass
+MARGIN_UNWIND_COOLDOWN_SECONDS = 180        # Wait three minutes before attempting another unwind pass
 
 # Order retry tuning for margin shortfalls
 ORDER_NO_MONEY_RETRY_ENABLED = True
@@ -3111,6 +4133,13 @@ DYNAMIC_VAR_MAX_FACTOR = 1.45           # Upper cap when VaR is well below targe
 DYNAMIC_VAR_SMOOTHING = 0.2             # EWMA smoothing factor for VaR estimate
 DYNAMIC_VAR_SAMPLE_FLOOR = 40           # Require this many samples before enforcing VaR clamp
 DYNAMIC_VAR_HYSTERESIS = 0.005          # Prevent churn by ignoring tiny deviations around target
+DYNAMIC_VAR_UNWIND_ENABLED = True       # Permit automatic deleveraging when VaR clamp is severe
+DYNAMIC_VAR_UNWIND_FACTOR = 0.40        # Default fraction of exposure to unwind when triggered
+DYNAMIC_VAR_UNWIND_PER_CYCLE_LIMIT = 0.35  # Do not close more than 35% of current book in a single cycle
+DYNAMIC_VAR_UNWIND_FACTOR_THRESHOLD = 0.45  # Trigger unwind when factor sits below this value
+DYNAMIC_VAR_UNWIND_EXCESS_RATIO = 0.35      # Require VaR to exceed target by at least 35%
+DYNAMIC_VAR_UNWIND_MIN_SEVERITY = 0.20      # Additional guard using clamp severity estimates
+DYNAMIC_VAR_UNWIND_GRACE_SECONDS = 240.0    # Minimum seconds between successive VaR-triggered unwinds
 
 # Telemetry collection (JSONL file for dashboards/alerting)
 TELEMETRY_ENABLED = True
@@ -3146,93 +4175,104 @@ RISK_PRESETS: dict[str, dict[str, object]] = {
         "label": "Capital preservation",
         "description": "Dial risk way back for grinding, low-volatility compounding.",
         "settings": {
-            "ACCOUNT_RISK_PER_TRADE": 0.015,
-            "RISK_MULTIPLIER_MAX": 1.45,
-            "RISK_MULTIPLIER_RELIEF_MAX": 1.18,
-            "SOFT_GUARD_LIMIT": 0.18,
-            "SOFT_GUARD_ALERT": 0.13,
-            "SOFT_GUARD_CAUTION": 0.08,
-            "SOFT_GUARD_RESUME": 0.05,
-            "SOFT_GUARD_MIN_THROTTLE": 0.30,
-            "MARGIN_USAGE_THROTTLE": 0.36,
-            "MARGIN_USAGE_BLOCK": 0.48,
-            "MARGIN_USAGE_RESUME": 0.40,
-            "MARGIN_USAGE_THROTTLE_RESUME": 0.30,
-            "MARGIN_FREE_RATIO_THROTTLE": 0.60,
-            "MARGIN_FREE_RATIO_BLOCK": 0.44,
-            "MARGIN_FREE_RATIO_RESUME": 0.52,
-            "MARGIN_FREE_RATIO_THROTTLE_RESUME": 0.48,
-            "MARGIN_GUARD_MIN_THROTTLE": 0.28,
-            "MARGIN_ENTRY_GUARD_MIN_FACTOR": 0.66,
-            "PYRAMID_GUARD_MIN_FACTOR": 0.76,
+            "ACCOUNT_RISK_PER_TRADE": 0.011,
+            "RISK_MULTIPLIER_MAX": 1.28,
+            "RISK_MULTIPLIER_RELIEF_MAX": 1.08,
+            "SOFT_GUARD_LIMIT": 0.16,
+            "SOFT_GUARD_ALERT": 0.11,
+            "SOFT_GUARD_CAUTION": 0.07,
+            "SOFT_GUARD_RESUME": 0.04,
+            "SOFT_GUARD_MIN_THROTTLE": 0.26,
+            "SCAN_INTERVAL_SECONDS": 90,
+            "MIN_SESSION_PRIORITY": 4,
+            "ALPHA_SURGE_MIN_SESSION_PRIORITY": 4,
+            "MARGIN_USAGE_THROTTLE": 0.26,
+            "MARGIN_USAGE_BLOCK": 0.36,
+            "MARGIN_USAGE_RESUME": 0.30,
+            "MARGIN_USAGE_THROTTLE_RESUME": 0.22,
+            "MARGIN_FREE_RATIO_THROTTLE": 0.68,
+            "MARGIN_FREE_RATIO_BLOCK": 0.54,
+            "MARGIN_FREE_RATIO_RESUME": 0.60,
+            "MARGIN_FREE_RATIO_THROTTLE_RESUME": 0.56,
+            "MARGIN_GUARD_MIN_THROTTLE": 0.32,
+            "MARGIN_ENTRY_GUARD_MIN_FACTOR": 0.72,
+            "PYRAMID_GUARD_MIN_FACTOR": 0.82,
+            "MARGIN_UNWIND_TRIGGER_THROTTLE": 0.70,
+            "MARGIN_UNWIND_TRIGGER_SEVERITY": 0.36,
+            "MARGIN_UNWIND_BLOCK_REDUCTION": 0.64,
+            "MARGIN_UNWIND_MIN_REDUCTION": 0.24,
+            "MARGIN_UNWIND_MAX_REDUCTION": 0.76,
+            "MARGIN_UNWIND_COOLDOWN_SECONDS": 150,
+            "MARGIN_ALERT_SEVERITY_THRESHOLD": 0.46,
+            "MARGIN_ALERT_REPEAT_BUCKET": 0.08,
             "PYRAMID_MAX_ENTRIES_PER_SIDE": 3,
-            "PYRAMID_MIN_CONFIDENCE": 0.95,
-            "PYRAMID_WINNING_RISK_BOOST": 1.08,
-            "PYRAMID_LOSING_RISK_BOOST": 0.78,
+            "PYRAMID_MIN_CONFIDENCE": 0.96,
+            "PYRAMID_WINNING_RISK_BOOST": 1.04,
+            "PYRAMID_LOSING_RISK_BOOST": 0.74,
             "EXPOSURE_CAPS_ENABLED": True,
-            "EXPOSURE_SYMBOL_DEFAULT_MAX_TOTAL": 1.05,
-            "EXPOSURE_SYMBOL_DEFAULT_MAX_SAME": 0.70,
+            "EXPOSURE_SYMBOL_DEFAULT_MAX_TOTAL": 0.80,
+            "EXPOSURE_SYMBOL_DEFAULT_MAX_SAME": 0.52,
             "EXPOSURE_SYMBOL_OVERRIDES": {
-                "XAUUSD": {"max_total": 0.85, "max_same": 0.60},
-                "GBPJPY": {"max_total": 0.95, "max_same": 0.65},
-                "BTCUSD": {"max_total": 0.40, "max_same": 0.28},
+                "XAUUSD": {"max_total": 0.68, "max_same": 0.48},
+                "GBPJPY": {"max_total": 0.78, "max_same": 0.52},
+                "BTCUSD": {"max_total": 0.28, "max_same": 0.18},
             },
-            "EXPOSURE_CURRENCY_EQUITY_MULTIPLIER": 9.0,
+            "EXPOSURE_CURRENCY_EQUITY_MULTIPLIER": 5.5,
             "EXPOSURE_CURRENCY_OVERRIDES": {
-                "USD": 8.5,
-                "JPY": 7.5,
-                "XAU": 6.0,
-                "BTC": 3.5,
+                "USD": 5.2,
+                "JPY": 4.2,
+                "XAU": 3.5,
+                "BTC": 2.0,
             },
-            "SYMBOL_EXPOSURE_LIMIT_SCALE": 0.85,
-            "CURRENCY_EXPOSURE_LIMIT_SCALE": 0.85,
-            "CURRENCY_EXPOSURE_WARN_SHIFT": -0.04,
-            "CORRELATION_RISK_SAME_BONUS": -0.55,
-            "CORRELATION_RISK_TOTAL_BONUS": -0.55,
-            "CORRELATION_RISK_VOLUME_SCALE": 0.86,
-            "CORRELATION_RISK_MULTIPLIER_BONUS": -0.05,
+            "SYMBOL_EXPOSURE_LIMIT_SCALE": 0.72,
+            "CURRENCY_EXPOSURE_LIMIT_SCALE": 0.70,
+            "CURRENCY_EXPOSURE_WARN_SHIFT": -0.08,
+            "CORRELATION_RISK_SAME_BONUS": -0.68,
+            "CORRELATION_RISK_TOTAL_BONUS": -0.62,
+            "CORRELATION_RISK_VOLUME_SCALE": 0.80,
+            "CORRELATION_RISK_MULTIPLIER_BONUS": -0.10,
             "CORRELATION_RISK_GROUP_RELIEF": 0.0,
             "CORRELATION_RISK_GLOBAL_RELIEF": 0.0,
-            "MICRO_MOMENTUM_BASE_THRESHOLD": 0.00070,
-            "MICRO_MOMENTUM_DYNAMIC_MULTIPLIER": 0.56,
-            "MICRO_MOMENTUM_SOFT_PASS_RATIO": 0.52,
-            "AGGRESSIVE_MICRO_TOLERANCE": 0.22,
-            "AGGRESSIVE_MICRO_MIN_RATIO": 0.30,
-            "MICRO_MOMENTUM_NEAR_MISS_RATIO": 0.80,
-            "MICRO_MOMENTUM_GUARD_MIN": 0.92,
-            "MICRO_MOMENTUM_NEAR_MISS_MAX_DD": 0.60,
+            "MICRO_MOMENTUM_BASE_THRESHOLD": 0.00076,
+            "MICRO_MOMENTUM_DYNAMIC_MULTIPLIER": 0.50,
+            "MICRO_MOMENTUM_SOFT_PASS_RATIO": 0.56,
+            "AGGRESSIVE_MICRO_TOLERANCE": 0.18,
+            "AGGRESSIVE_MICRO_MIN_RATIO": 0.28,
+            "MICRO_MOMENTUM_NEAR_MISS_RATIO": 0.78,
+            "MICRO_MOMENTUM_GUARD_MIN": 0.94,
+            "MICRO_MOMENTUM_NEAR_MISS_MAX_DD": 0.52,
             "HIGH_RISK_MICRO_NEUTRAL_RATIO": 0.0,
-            "HIGH_RISK_MICRO_GUARD_MIN": 1.06,
-            "HIGH_RISK_MICRO_MAX_DRAWDOWN": 0.88,
-            "SPREAD_POINTS_LIMIT": 8,
-            "SPREAD_ATR_RATIO_LIMIT": 0.32,
+            "HIGH_RISK_MICRO_GUARD_MIN": 1.08,
+            "HIGH_RISK_MICRO_MAX_DRAWDOWN": 0.80,
+            "SPREAD_POINTS_LIMIT": 6,
+            "SPREAD_ATR_RATIO_LIMIT": 0.24,
             "LOW_VOL_GUARD_ENABLED": True,
-            "LOW_VOL_SKIP_THRESHOLD": 0.75,
+            "LOW_VOL_SKIP_THRESHOLD": 0.82,
             "LOW_VOL_SKIP_STREAK": 2,
             "LOW_VOL_RESUME_STREAK": 1,
-            "LOW_VOL_RISK_SCALE": 0.55,
-            "LOW_VOL_CONF_PENALTY": 0.05,
+            "LOW_VOL_RISK_SCALE": 0.46,
+            "LOW_VOL_CONF_PENALTY": 0.06,
             "EQUITY_GOVERNOR_ENABLED": True,
-            "EQUITY_GOVERNOR_ALPHA": 0.04,
-            "EQUITY_GOVERNOR_WARN": -0.018,
-            "EQUITY_GOVERNOR_HARD": -0.045,
-            "EQUITY_GOVERNOR_MIN_FACTOR": 0.24,
-            "EQUITY_GOVERNOR_BOOST_THRESHOLD": 0.028,
-            "EQUITY_GOVERNOR_MAX_FACTOR": 1.08,
+            "EQUITY_GOVERNOR_ALPHA": 0.035,
+            "EQUITY_GOVERNOR_WARN": -0.014,
+            "EQUITY_GOVERNOR_HARD": -0.035,
+            "EQUITY_GOVERNOR_MIN_FACTOR": 0.20,
+            "EQUITY_GOVERNOR_BOOST_THRESHOLD": 0.024,
+            "EQUITY_GOVERNOR_MAX_FACTOR": 0.92,
             "DYNAMIC_VAR_ENABLED": True,
-            "DYNAMIC_VAR_LOOKBACK": 200,
-            "DYNAMIC_VAR_TAIL_PROB": 0.016,
-            "DYNAMIC_VAR_TARGET": 0.010,
-            "DYNAMIC_VAR_MIN_FACTOR": 0.30,
-            "DYNAMIC_VAR_MAX_FACTOR": 1.12,
-            "DYNAMIC_VAR_SMOOTHING": 0.24,
-            "DYNAMIC_VAR_SAMPLE_FLOOR": 80,
-            "DYNAMIC_VAR_HYSTERESIS": 0.0048,
-            "CONFIDENCE_EXECUTION_THRESHOLD": 0.72,
-            "CONFIDENCE_SOFT_PASS_RELIEF": 0.010,
-            "CONFIDENCE_OVERRIDE_RELIEF": 0.018,
-            "CONFIDENCE_EXISTING_POSITION_RELIEF": 0.008,
-            "CONFIDENCE_THRESHOLD_FLOOR": 0.54,
+            "DYNAMIC_VAR_LOOKBACK": 220,
+            "DYNAMIC_VAR_TAIL_PROB": 0.018,
+            "DYNAMIC_VAR_TARGET": 0.009,
+            "DYNAMIC_VAR_MIN_FACTOR": 0.22,
+            "DYNAMIC_VAR_MAX_FACTOR": 0.98,
+            "DYNAMIC_VAR_SMOOTHING": 0.28,
+            "DYNAMIC_VAR_SAMPLE_FLOOR": 90,
+            "DYNAMIC_VAR_HYSTERESIS": 0.0052,
+            "CONFIDENCE_EXECUTION_THRESHOLD": 0.74,
+            "CONFIDENCE_SOFT_PASS_RELIEF": 0.008,
+            "CONFIDENCE_OVERRIDE_RELIEF": 0.014,
+            "CONFIDENCE_EXISTING_POSITION_RELIEF": 0.006,
+            "CONFIDENCE_THRESHOLD_FLOOR": 0.56,
             "USE_MARGIN_FOR_CURRENCY_EXPOSURE": False,
         },
     },
@@ -3240,179 +4280,215 @@ RISK_PRESETS: dict[str, dict[str, object]] = {
         "label": "Balanced growth",
         "description": "Blend of drawdown control and momentum capture for everyday trading.",
         "settings": {
-            "ACCOUNT_RISK_PER_TRADE": 0.035,
-            "RISK_MULTIPLIER_MAX": 2.25,
-            "RISK_MULTIPLIER_RELIEF_MAX": 1.60,
-            "SOFT_GUARD_LIMIT": 0.30,
-            "SOFT_GUARD_ALERT": 0.22,
-            "SOFT_GUARD_CAUTION": 0.14,
-            "SOFT_GUARD_RESUME": 0.09,
-            "SOFT_GUARD_MIN_THROTTLE": 0.38,
-            "MARGIN_USAGE_THROTTLE": 0.50,
-            "MARGIN_USAGE_BLOCK": 0.70,
-            "MARGIN_USAGE_RESUME": 0.56,
-            "MARGIN_USAGE_THROTTLE_RESUME": 0.42,
-            "MARGIN_FREE_RATIO_THROTTLE": 0.48,
-            "MARGIN_FREE_RATIO_BLOCK": 0.30,
-            "MARGIN_FREE_RATIO_RESUME": 0.40,
-            "MARGIN_FREE_RATIO_THROTTLE_RESUME": 0.36,
-            "MARGIN_GUARD_MIN_THROTTLE": 0.32,
-            "MARGIN_ENTRY_GUARD_MIN_FACTOR": 0.58,
-            "PYRAMID_GUARD_MIN_FACTOR": 0.68,
-            "PYRAMID_MAX_ENTRIES_PER_SIDE": 4,
-            "PYRAMID_MIN_CONFIDENCE": 0.90,
-            "PYRAMID_WINNING_RISK_BOOST": 1.22,
-            "PYRAMID_LOSING_RISK_BOOST": 0.88,
+            "ACCOUNT_RISK_PER_TRADE": 0.055,
+            "RISK_MULTIPLIER_MAX": 3.20,
+            "RISK_MULTIPLIER_RELIEF_MAX": 2.30,
+            "SOFT_GUARD_LIMIT": 0.36,
+            "SOFT_GUARD_ALERT": 0.26,
+            "SOFT_GUARD_CAUTION": 0.17,
+            "SOFT_GUARD_RESUME": 0.11,
+            "SOFT_GUARD_MIN_THROTTLE": 0.42,
+            "SCAN_INTERVAL_SECONDS": 52,
+            "MIN_SESSION_PRIORITY": 3,
+            "ALPHA_SURGE_MIN_SESSION_PRIORITY": 4,
+            "MARGIN_USAGE_THROTTLE": 0.60,
+            "MARGIN_USAGE_BLOCK": 0.80,
+            "MARGIN_USAGE_RESUME": 0.64,
+            "MARGIN_USAGE_THROTTLE_RESUME": 0.48,
+            "MARGIN_FREE_RATIO_THROTTLE": 0.44,
+            "MARGIN_FREE_RATIO_BLOCK": 0.26,
+            "MARGIN_FREE_RATIO_RESUME": 0.36,
+            "MARGIN_FREE_RATIO_THROTTLE_RESUME": 0.32,
+            "MARGIN_GUARD_MIN_THROTTLE": 0.30,
+            "MARGIN_ENTRY_GUARD_MIN_FACTOR": 0.52,
+            "PYRAMID_GUARD_MIN_FACTOR": 0.60,
+            "MARGIN_UNWIND_TRIGGER_THROTTLE": 0.62,
+            "MARGIN_UNWIND_TRIGGER_SEVERITY": 0.44,
+            "MARGIN_UNWIND_BLOCK_REDUCTION": 0.48,
+            "MARGIN_UNWIND_MIN_REDUCTION": 0.18,
+            "MARGIN_UNWIND_MAX_REDUCTION": 0.58,
+            "MARGIN_UNWIND_COOLDOWN_SECONDS": 155,
+            "MARGIN_ALERT_SEVERITY_THRESHOLD": 0.50,
+            "MARGIN_ALERT_REPEAT_BUCKET": 0.10,
+            "PYRAMID_MAX_ENTRIES_PER_SIDE": 5,
+            "PYRAMID_MIN_CONFIDENCE": 0.86,
+            "PYRAMID_WINNING_RISK_BOOST": 1.32,
+            "PYRAMID_LOSING_RISK_BOOST": 0.90,
             "EXPOSURE_CAPS_ENABLED": True,
-            "EXPOSURE_SYMBOL_DEFAULT_MAX_TOTAL": 2.20,
-            "EXPOSURE_SYMBOL_DEFAULT_MAX_SAME": 1.45,
+            "EXPOSURE_SYMBOL_DEFAULT_MAX_TOTAL": 3.00,
+            "EXPOSURE_SYMBOL_DEFAULT_MAX_SAME": 2.00,
             "EXPOSURE_SYMBOL_OVERRIDES": {
-                "XAUUSD": {"max_total": 1.90, "max_same": 1.30},
-                "GBPJPY": {"max_total": 2.00, "max_same": 1.35},
-                "BTCUSD": {"max_total": 0.80, "max_same": 0.52},
+                "XAUUSD": {"max_total": 2.60, "max_same": 1.60},
+                "GBPJPY": {"max_total": 2.70, "max_same": 1.70},
+                "BTCUSD": {"max_total": 0.95, "max_same": 0.60},
             },
-            "EXPOSURE_CURRENCY_EQUITY_MULTIPLIER": 20.0,
+            "EXPOSURE_CURRENCY_EQUITY_MULTIPLIER": 38.0,
             "EXPOSURE_CURRENCY_OVERRIDES": {
-                "USD": 19.0,
-                "JPY": 14.5,
-                "XAU": 10.5,
-                "BTC": 6.0,
+                "USD": 36.0,
+                "JPY": 26.0,
+                "XAU": 18.0,
+                "BTC": 10.0,
             },
-            "SYMBOL_EXPOSURE_LIMIT_SCALE": 1.10,
-            "CURRENCY_EXPOSURE_LIMIT_SCALE": 1.12,
-            "CURRENCY_EXPOSURE_WARN_SHIFT": 0.01,
-            "CORRELATION_RISK_SAME_BONUS": -0.10,
-            "CORRELATION_RISK_TOTAL_BONUS": -0.10,
-            "CORRELATION_RISK_VOLUME_SCALE": 0.96,
-            "CORRELATION_RISK_MULTIPLIER_BONUS": 0.02,
-            "CORRELATION_RISK_GROUP_RELIEF": 0.06,
-            "CORRELATION_RISK_GLOBAL_RELIEF": 0.04,
-            "MICRO_MOMENTUM_BASE_THRESHOLD": 0.00058,
-            "MICRO_MOMENTUM_DYNAMIC_MULTIPLIER": 0.64,
-            "MICRO_MOMENTUM_SOFT_PASS_RATIO": 0.46,
-            "AGGRESSIVE_MICRO_TOLERANCE": 0.26,
-            "AGGRESSIVE_MICRO_MIN_RATIO": 0.36,
-            "MICRO_MOMENTUM_NEAR_MISS_RATIO": 0.84,
-            "MICRO_MOMENTUM_GUARD_MIN": 0.96,
-            "MICRO_MOMENTUM_NEAR_MISS_MAX_DD": 0.72,
-            "HIGH_RISK_MICRO_NEUTRAL_RATIO": 0.30,
-            "HIGH_RISK_MICRO_GUARD_MIN": 1.02,
-            "HIGH_RISK_MICRO_MAX_DRAWDOWN": 0.86,
-            "SPREAD_POINTS_LIMIT": 10,
-            "SPREAD_ATR_RATIO_LIMIT": 0.36,
+            "SYMBOL_EXPOSURE_LIMIT_SCALE": 1.45,
+            "CURRENCY_EXPOSURE_LIMIT_SCALE": 1.45,
+            "CURRENCY_EXPOSURE_WARN_SHIFT": 0.08,
+            "CORRELATION_RISK_SAME_BONUS": 0.06,
+            "CORRELATION_RISK_TOTAL_BONUS": 0.06,
+            "CORRELATION_RISK_VOLUME_SCALE": 1.02,
+            "CORRELATION_RISK_MULTIPLIER_BONUS": 0.06,
+            "CORRELATION_RISK_GROUP_RELIEF": 0.10,
+            "CORRELATION_RISK_GLOBAL_RELIEF": 0.08,
+            "MICRO_MOMENTUM_BASE_THRESHOLD": 0.00050,
+            "MICRO_MOMENTUM_DYNAMIC_MULTIPLIER": 0.58,
+            "MICRO_MOMENTUM_SOFT_PASS_RATIO": 0.38,
+            "AGGRESSIVE_MICRO_TOLERANCE": 0.30,
+            "AGGRESSIVE_MICRO_MIN_RATIO": 0.32,
+            "MICRO_MOMENTUM_NEAR_MISS_RATIO": 0.88,
+            "MICRO_MOMENTUM_GUARD_MIN": 0.92,
+            "MICRO_MOMENTUM_NEAR_MISS_MAX_DD": 0.78,
+            "HIGH_RISK_MICRO_NEUTRAL_RATIO": 0.38,
+            "HIGH_RISK_MICRO_GUARD_MIN": 0.96,
+            "HIGH_RISK_MICRO_MAX_DRAWDOWN": 0.80,
+            "SPREAD_POINTS_LIMIT": 12,
+            "SPREAD_ATR_RATIO_LIMIT": 0.42,
             "LOW_VOL_GUARD_ENABLED": True,
-            "LOW_VOL_SKIP_THRESHOLD": 0.62,
+            "LOW_VOL_SKIP_THRESHOLD": 0.56,
             "LOW_VOL_SKIP_STREAK": 2,
             "LOW_VOL_RESUME_STREAK": 1,
-            "LOW_VOL_RISK_SCALE": 0.78,
-            "LOW_VOL_CONF_PENALTY": 0.03,
+            "LOW_VOL_RISK_SCALE": 0.86,
+            "LOW_VOL_CONF_PENALTY": 0.018,
             "EQUITY_GOVERNOR_ENABLED": True,
-            "EQUITY_GOVERNOR_ALPHA": 0.07,
-            "EQUITY_GOVERNOR_WARN": -0.028,
-            "EQUITY_GOVERNOR_HARD": -0.070,
-            "EQUITY_GOVERNOR_MIN_FACTOR": 0.30,
+            "EQUITY_GOVERNOR_ALPHA": 0.078,
+            "EQUITY_GOVERNOR_WARN": -0.030,
+            "EQUITY_GOVERNOR_HARD": -0.076,
+            "EQUITY_GOVERNOR_MIN_FACTOR": 0.28,
             "EQUITY_GOVERNOR_BOOST_THRESHOLD": 0.032,
-            "EQUITY_GOVERNOR_MAX_FACTOR": 1.24,
+            "EQUITY_GOVERNOR_MAX_FACTOR": 1.34,
             "DYNAMIC_VAR_ENABLED": True,
-            "DYNAMIC_VAR_LOOKBACK": 140,
-            "DYNAMIC_VAR_TAIL_PROB": 0.011,
-            "DYNAMIC_VAR_TARGET": 0.013,
-            "DYNAMIC_VAR_MIN_FACTOR": 0.36,
-            "DYNAMIC_VAR_MAX_FACTOR": 1.38,
-            "DYNAMIC_VAR_SMOOTHING": 0.20,
-            "DYNAMIC_VAR_SAMPLE_FLOOR": 60,
-            "DYNAMIC_VAR_HYSTERESIS": 0.0043,
-            "CONFIDENCE_EXECUTION_THRESHOLD": 0.62,
-            "CONFIDENCE_SOFT_PASS_RELIEF": 0.016,
-            "CONFIDENCE_OVERRIDE_RELIEF": 0.026,
-            "CONFIDENCE_EXISTING_POSITION_RELIEF": 0.012,
-            "CONFIDENCE_THRESHOLD_FLOOR": 0.48,
+            "DYNAMIC_VAR_LOOKBACK": 126,
+            "DYNAMIC_VAR_TAIL_PROB": 0.010,
+            "DYNAMIC_VAR_TARGET": 0.015,
+            "DYNAMIC_VAR_MIN_FACTOR": 0.34,
+            "DYNAMIC_VAR_MAX_FACTOR": 1.46,
+            "DYNAMIC_VAR_SMOOTHING": 0.18,
+            "DYNAMIC_VAR_SAMPLE_FLOOR": 70,
+            "DYNAMIC_VAR_HYSTERESIS": 0.0038,
+            "CONFIDENCE_EXECUTION_THRESHOLD": 0.58,
+            "CONFIDENCE_SOFT_PASS_RELIEF": 0.022,
+            "CONFIDENCE_OVERRIDE_RELIEF": 0.032,
+            "CONFIDENCE_EXISTING_POSITION_RELIEF": 0.016,
+            "CONFIDENCE_THRESHOLD_FLOOR": 0.46,
             "USE_MARGIN_FOR_CURRENCY_EXPOSURE": False,
         },
     },
     "high": {
         "label": "Aggressive compounding",
-        "description": "Flip-mode: maximal sizing, loose guardrails, no exposure caps.",
+        "description": "High-octane profile with moderated guardrails and smarter throttles.",
         "settings": {
-            "ACCOUNT_RISK_PER_TRADE": 0.080,
-            "RISK_MULTIPLIER_MAX": 3.80,
-            "RISK_MULTIPLIER_RELIEF_MAX": 3.20,
-            "SOFT_GUARD_LIMIT": 0.42,
-            "SOFT_GUARD_ALERT": 0.34,
-            "SOFT_GUARD_CAUTION": 0.21,
-            "SOFT_GUARD_RESUME": 0.14,
-            "SOFT_GUARD_MIN_THROTTLE": 0.46,
-            "MARGIN_USAGE_THROTTLE": 0.72,
-            "MARGIN_USAGE_BLOCK": 0.92,
-            "MARGIN_USAGE_RESUME": 0.78,
-            "MARGIN_USAGE_THROTTLE_RESUME": 0.60,
-            "MARGIN_FREE_RATIO_THROTTLE": 0.34,
+            "ACCOUNT_RISK_PER_TRADE": 0.140,
+            "RISK_MULTIPLIER_MAX": 5.50,
+            "RISK_MULTIPLIER_RELIEF_MAX": 4.20,
+            "RISK_GUARD_ENABLED": False,
+            "DAILY_MAX_DRAWDOWN": 0.18,
+            "WEEKLY_MAX_DRAWDOWN": 0.30,
+            "RISK_RECOVERY_THRESHOLD": 0.080,
+            "RISK_RECOVERY_MIN_FACTOR": 0.35,
+            "SOFT_GUARD_LIMIT": 0.64,
+            "SOFT_GUARD_ALERT": 0.48,
+            "SOFT_GUARD_CAUTION": 0.30,
+            "SOFT_GUARD_RESUME": 0.18,
+            "SOFT_GUARD_MIN_THROTTLE": 0.52,
+            "SCAN_INTERVAL_SECONDS": 18,
+            "MIN_SESSION_PRIORITY": 1,
+            "ALPHA_SURGE_MIN_SESSION_PRIORITY": 2,
+            "MARGIN_USAGE_THROTTLE": 0.70,
+            "MARGIN_USAGE_BLOCK": 0.90,
+            "MARGIN_USAGE_RESUME": 0.74,
+            "MARGIN_USAGE_THROTTLE_RESUME": 0.62,
+            "MARGIN_FREE_RATIO_THROTTLE": 0.28,
             "MARGIN_FREE_RATIO_BLOCK": 0.18,
-            "MARGIN_FREE_RATIO_RESUME": 0.26,
-            "MARGIN_FREE_RATIO_THROTTLE_RESUME": 0.24,
-            "MARGIN_GUARD_MIN_THROTTLE": 0.36,
-            "MARGIN_ENTRY_GUARD_MIN_FACTOR": 0.46,
-            "PYRAMID_GUARD_MIN_FACTOR": 0.58,
-            "PYRAMID_MAX_ENTRIES_PER_SIDE": 6,
-            "PYRAMID_MIN_CONFIDENCE": 0.86,
-            "PYRAMID_WINNING_RISK_BOOST": 1.32,
-            "PYRAMID_LOSING_RISK_BOOST": 1.02,
+            "MARGIN_FREE_RATIO_RESUME": 0.24,
+            "MARGIN_FREE_RATIO_THROTTLE_RESUME": 0.22,
+            "MARGIN_GUARD_MIN_THROTTLE": 0.32,
+            "MARGIN_ENTRY_GUARD_MIN_FACTOR": 0.42,
+            "PYRAMID_GUARD_MIN_FACTOR": 0.48,
+            "MARGIN_UNWIND_TRIGGER_THROTTLE": 0.48,
+            "MARGIN_UNWIND_TRIGGER_SEVERITY": 0.60,
+            "MARGIN_UNWIND_BLOCK_REDUCTION": 0.45,
+            "MARGIN_UNWIND_MIN_REDUCTION": 0.12,
+            "MARGIN_UNWIND_MAX_REDUCTION": 0.60,
+            "MARGIN_UNWIND_COOLDOWN_SECONDS": 180,
+            "MARGIN_ALERT_SEVERITY_THRESHOLD": 0.60,
+            "MARGIN_ALERT_REPEAT_BUCKET": 0.12,
+            "PYRAMID_MAX_ENTRIES_PER_SIDE": 7,
+            "PYRAMID_MIN_CONFIDENCE": 0.72,
+            "PYRAMID_WINNING_RISK_BOOST": 1.35,
+            "PYRAMID_LOSING_RISK_BOOST": 1.05,
             "EXPOSURE_CAPS_ENABLED": False,
-            "EXPOSURE_SYMBOL_DEFAULT_MAX_TOTAL": 4.00,
-            "EXPOSURE_SYMBOL_DEFAULT_MAX_SAME": 2.80,
-            "EXPOSURE_SYMBOL_OVERRIDES": {},
-            "EXPOSURE_CURRENCY_EQUITY_MULTIPLIER": 60.0,
-            "EXPOSURE_CURRENCY_OVERRIDES": {},
-            "SYMBOL_EXPOSURE_LIMIT_SCALE": 1.50,
-            "CURRENCY_EXPOSURE_LIMIT_SCALE": 1.60,
-            "CURRENCY_EXPOSURE_WARN_SHIFT": 0.05,
-            "CORRELATION_RISK_SAME_BONUS": 0.90,
-            "CORRELATION_RISK_TOTAL_BONUS": 0.90,
-            "CORRELATION_RISK_VOLUME_SCALE": 1.30,
-            "CORRELATION_RISK_MULTIPLIER_BONUS": 0.20,
-            "CORRELATION_RISK_GROUP_RELIEF": 0.18,
-            "CORRELATION_RISK_GLOBAL_RELIEF": 0.12,
-            "MICRO_MOMENTUM_BASE_THRESHOLD": 0.00050,
-            "MICRO_MOMENTUM_DYNAMIC_MULTIPLIER": 0.74,
-            "MICRO_MOMENTUM_SOFT_PASS_RATIO": 0.38,
-            "AGGRESSIVE_MICRO_TOLERANCE": 0.34,
-            "AGGRESSIVE_MICRO_MIN_RATIO": 0.40,
-            "MICRO_MOMENTUM_NEAR_MISS_RATIO": 0.92,
-            "MICRO_MOMENTUM_GUARD_MIN": 0.96,
-            "MICRO_MOMENTUM_NEAR_MISS_MAX_DD": 0.88,
-            "HIGH_RISK_MICRO_NEUTRAL_RATIO": 0.60,
-            "HIGH_RISK_MICRO_GUARD_MIN": 0.94,
-            "HIGH_RISK_MICRO_MAX_DRAWDOWN": 0.82,
-            "SPREAD_POINTS_LIMIT": 12,
-            "SPREAD_ATR_RATIO_LIMIT": 0.48,
-            "LOW_VOL_GUARD_ENABLED": False,
-            "LOW_VOL_SKIP_THRESHOLD": 0.0,
-            "LOW_VOL_SKIP_STREAK": 0,
-            "LOW_VOL_RESUME_STREAK": 0,
-            "LOW_VOL_RISK_SCALE": 1.0,
-            "LOW_VOL_CONF_PENALTY": 0.0,
+            "EXPOSURE_SYMBOL_DEFAULT_MAX_TOTAL": 9.60,
+            "EXPOSURE_SYMBOL_DEFAULT_MAX_SAME": 6.60,
+            "EXPOSURE_SYMBOL_OVERRIDES": {
+                "XAUUSD": {"max_total": 8.20, "max_same": 5.10},
+                "GBPJPY": {"max_total": 8.60, "max_same": 5.40},
+                "BTCUSD": {"max_total": 1.80, "max_same": 1.20},
+            },
+            "EXPOSURE_CURRENCY_EQUITY_MULTIPLIER": 160.0,
+            "EXPOSURE_CURRENCY_OVERRIDES": {
+                "USD": 158.0,
+                "JPY": 126.0,
+                "XAU": 92.0,
+                "BTC": 28.0,
+            },
+            "SYMBOL_EXPOSURE_LIMIT_SCALE": 2.40,
+            "CURRENCY_EXPOSURE_LIMIT_SCALE": 2.36,
+            "CURRENCY_EXPOSURE_WARN_SHIFT": 0.16,
+            "CORRELATION_RISK_SAME_BONUS": 0.55,
+            "CORRELATION_RISK_TOTAL_BONUS": 0.42,
+            "CORRELATION_RISK_VOLUME_SCALE": 1.20,
+            "CORRELATION_RISK_MULTIPLIER_BONUS": 0.22,
+            "CORRELATION_RISK_GROUP_RELIEF": 0.28,
+            "CORRELATION_RISK_GLOBAL_RELIEF": 0.20,
+            "MICRO_MOMENTUM_BASE_THRESHOLD": 0.00022,
+            "MICRO_MOMENTUM_DYNAMIC_MULTIPLIER": 0.42,
+            "MICRO_MOMENTUM_SOFT_PASS_RATIO": 0.20,
+            "AGGRESSIVE_MICRO_TOLERANCE": 0.44,
+            "AGGRESSIVE_MICRO_MIN_RATIO": 0.28,
+            "MICRO_MOMENTUM_NEAR_MISS_RATIO": 0.94,
+            "MICRO_MOMENTUM_GUARD_MIN": 0.72,
+            "MICRO_MOMENTUM_NEAR_MISS_MAX_DD": 0.98,
+            "HIGH_RISK_MICRO_NEUTRAL_RATIO": 0.92,
+            "HIGH_RISK_MICRO_GUARD_MIN": 0.74,
+            "HIGH_RISK_MICRO_MAX_DRAWDOWN": 0.58,
+            "SPREAD_POINTS_LIMIT": 30,
+            "SPREAD_ATR_RATIO_LIMIT": 0.82,
+            "LOW_VOL_GUARD_ENABLED": True,
+            "LOW_VOL_SKIP_THRESHOLD": 0.22,
+            "LOW_VOL_SKIP_STREAK": 4,
+            "LOW_VOL_RESUME_STREAK": 1,
+            "LOW_VOL_RISK_SCALE": 1.20,
+            "LOW_VOL_CONF_PENALTY": 0.002,
             "EQUITY_GOVERNOR_ENABLED": True,
-            "EQUITY_GOVERNOR_ALPHA": 0.12,
-            "EQUITY_GOVERNOR_WARN": -0.050,
-            "EQUITY_GOVERNOR_HARD": -0.110,
-            "EQUITY_GOVERNOR_MIN_FACTOR": 0.34,
-            "EQUITY_GOVERNOR_BOOST_THRESHOLD": 0.060,
-            "EQUITY_GOVERNOR_MAX_FACTOR": 1.45,
+            "EQUITY_GOVERNOR_ALPHA": 0.16,
+            "EQUITY_GOVERNOR_WARN": -0.095,
+            "EQUITY_GOVERNOR_HARD": -0.210,
+            "EQUITY_GOVERNOR_MIN_FACTOR": 0.22,
+            "EQUITY_GOVERNOR_BOOST_THRESHOLD": 0.090,
+            "EQUITY_GOVERNOR_MAX_FACTOR": 1.88,
             "DYNAMIC_VAR_ENABLED": True,
-            "DYNAMIC_VAR_LOOKBACK": 100,
-            "DYNAMIC_VAR_TAIL_PROB": 0.009,
-            "DYNAMIC_VAR_TARGET": 0.016,
-            "DYNAMIC_VAR_MIN_FACTOR": 0.42,
-            "DYNAMIC_VAR_MAX_FACTOR": 1.55,
-            "DYNAMIC_VAR_SMOOTHING": 0.16,
-            "DYNAMIC_VAR_SAMPLE_FLOOR": 30,
-            "DYNAMIC_VAR_HYSTERESIS": 0.0035,
-            "CONFIDENCE_EXECUTION_THRESHOLD": 0.58,
-            "CONFIDENCE_SOFT_PASS_RELIEF": 0.028,
-            "CONFIDENCE_OVERRIDE_RELIEF": 0.040,
-            "CONFIDENCE_EXISTING_POSITION_RELIEF": 0.022,
-            "CONFIDENCE_THRESHOLD_FLOOR": 0.44,
-            "USE_MARGIN_FOR_CURRENCY_EXPOSURE": True,
+            "DYNAMIC_VAR_LOOKBACK": 90,
+            "DYNAMIC_VAR_TAIL_PROB": 0.006,
+            "DYNAMIC_VAR_TARGET": 0.024,
+            "DYNAMIC_VAR_MIN_FACTOR": 0.44,
+            "DYNAMIC_VAR_MAX_FACTOR": 1.95,
+            "DYNAMIC_VAR_SMOOTHING": 0.10,
+            "DYNAMIC_VAR_SAMPLE_FLOOR": 28,
+            "DYNAMIC_VAR_HYSTERESIS": 0.0026,
+            "CONFIDENCE_EXECUTION_THRESHOLD": 0.45,
+            "CONFIDENCE_SOFT_PASS_RELIEF": 0.060,
+            "CONFIDENCE_OVERRIDE_RELIEF": 0.078,
+            "CONFIDENCE_EXISTING_POSITION_RELIEF": 0.038,
+            "CONFIDENCE_THRESHOLD_FLOOR": 0.36,
+            "USE_MARGIN_FOR_CURRENCY_EXPOSURE": False,
         },
     },
 }
@@ -3424,7 +4500,21 @@ risk_multiplier_state: dict[str, object] = {
     "last_violation": None,
     "recovery_until": None,
     "recovery_cap": RISK_MULTIPLIER_RELIEF_MAX,
+    "last_boost_factor": 1.0,
+    "last_boost_reason": "",
+    "last_boost_emit": None,
 }
+
+
+def _reset_risk_multiplier_state(*, reset_cap: bool = True) -> None:
+    """Clear guard recovery state so new presets start with fresh limits."""
+    risk_multiplier_state["last_violation"] = None
+    risk_multiplier_state["recovery_until"] = None
+    if reset_cap:
+        risk_multiplier_state["recovery_cap"] = RISK_MULTIPLIER_MAX
+    risk_multiplier_state["last_boost_factor"] = 1.0
+    risk_multiplier_state["last_boost_reason"] = ""
+    risk_multiplier_state["last_boost_emit"] = None
 
 _LOW_VOLATILITY_GUARD_STATE: defaultdict[str, dict[str, float]] = defaultdict(
     lambda: {
@@ -3555,19 +4645,19 @@ def is_weekend_trading_window(now_utc: datetime | None = None) -> bool:
         now_utc = datetime.now(pytz.UTC)
     weekday = now_utc.weekday()
     hour = now_utc.hour
-    if weekday == 5:
-        return True
-    if weekday == 6:
-        return hour < 22
+    # Weekend crypto trading runs from Friday 23:00 UTC+2 (21:00 UTC)
+    # through Sunday 00:00 UTC+2 (Saturday 22:00 UTC).
     if weekday == 4:
-        return hour >= 22
+        return hour >= 21
+    if weekday == 5:
+        return hour < 22
     return False
 
 
 def get_active_symbols(now_utc: datetime | None = None) -> list[str]:
     if ENABLE_WEEKEND_CRYPTO and is_weekend_trading_window(now_utc):
-        return WEEKEND_SYMBOLS.copy()
-    return WEEKDAY_SYMBOLS.copy()
+        return list(WEEKEND_SYMBOLS)
+    return list(WEEKDAY_SYMBOLS)
 
 
 _LAST_RECORDED_SCAN_SUMMARY = 0
@@ -3597,7 +4687,7 @@ def log_cycle_summary(active_symbols: list[str], cycle_stats: dict[str, int], sc
     )
     print(
         "📊 Strategy diagnostics -> "
-        f"disabled {cycle_stats['strategies_disabled_regime']} | no-signal {cycle_stats['strategies_no_signal']} | "
+        f"disabled {cycle_stats['strategies_disabled_regime']} | persona-gated {cycle_stats['strategies_disabled_persona']} | mode-gated {cycle_stats['strategies_disabled_mode']} | no-signal {cycle_stats['strategies_no_signal']} | "
         f"ATR-missing {cycle_stats['strategies_skipped_atr']} | micro-overrides {cycle_stats['micro_overrides']} | micro-confirms {cycle_stats['micro_confirms']}"
     )
     print(
@@ -3612,6 +4702,13 @@ def log_cycle_summary(active_symbols: list[str], cycle_stats: dict[str, int], sc
         "⚡ Alpha surge -> "
         f"detected {cycle_stats['alpha_surge_active']} | scaled {cycle_stats['alpha_surge_scaled']}"
     )
+    if ML_CONFIDENCE_ENABLED:
+        print(
+            "🤖 ML confidence -> "
+            f"boosts {cycle_stats['ml_confidence_boosts']} | cuts {cycle_stats['ml_confidence_cuts']} | "
+            f"neutral {cycle_stats['ml_confidence_neutral']} | skipped {cycle_stats['ml_confidence_skipped']} | "
+            f"unavailable {cycle_stats['ml_confidence_unavailable']}"
+        )
     print(f"⏱️ Next scan in {SCAN_INTERVAL_SECONDS} seconds...")
 
 
@@ -3700,7 +4797,7 @@ TREND_THRESHOLD = 0.3         # ADX threshold for trending markets
 VOLATILITY_THRESHOLD = 1.5    # ATR multiplier for volatile markets
 
 # Strategy weights by market regime (sum should = 1.0 for each regime)
-REGIME_STRATEGY_WEIGHTS = {
+BASE_REGIME_STRATEGY_WEIGHTS: dict[str, dict[str, float]] = {
     'TRENDING': {
         'ma_crossover': 0.35,      # Best in trends
         'momentum_trend': 0.30,    # Excellent trend following
@@ -3723,6 +4820,212 @@ REGIME_STRATEGY_WEIGHTS = {
                 'mean_reversion': 0.05,    # Poor in high volatility
     }
 }
+
+REGIME_STRATEGY_WEIGHTS: dict[str, dict[str, float]] = deepcopy(BASE_REGIME_STRATEGY_WEIGHTS)
+
+ACTIVE_PERSONA_KEY: str | None = None
+persona_runtime_state: dict[str, object | None] = {
+    "key": None,
+    "label": None,
+    "emoji": None,
+    "tagline": None,
+    "description": None,
+    "source": None,
+}
+
+
+def activate_persona(
+    persona_key: str | None,
+    *,
+    source: str | None = None,
+    persist: bool = False,
+    announce: bool = True,
+    reapply_risk: bool = True,
+) -> str | None:
+    """Apply a themed persona by selecting risk preset + regime/agent tuning."""
+
+    global ACTIVE_PERSONA_KEY, REGIME_STRATEGY_WEIGHTS
+
+    normalized = _normalize_persona_key(persona_key)
+    if normalized and normalized not in PERSONA_PROFILES:
+        print(f"⚠️  Persona '{persona_key}' not recognized; falling back to default.")
+        normalized = _normalize_persona_key(DEFAULT_PERSONA_KEY)
+
+    if not normalized or normalized not in PERSONA_PROFILES:
+        ACTIVE_PERSONA_KEY = None
+        persona_runtime_state.update({
+            "key": None,
+            "label": None,
+            "emoji": None,
+            "tagline": None,
+            "description": None,
+            "source": source,
+        })
+        REGIME_STRATEGY_WEIGHTS = deepcopy(BASE_REGIME_STRATEGY_WEIGHTS)
+        refresh_agent_roster(None)
+        risk_profile_state["persona"] = None
+        risk_profile_state["persona_label"] = None
+        risk_profile_state["persona_description"] = None
+        risk_profile_state["persona_source"] = source
+        risk_profile_state["persona_risk_mode"] = None
+        if persist:
+            persist_risk_profile_state()
+        return None
+
+    config = PERSONA_PROFILES[normalized]
+    risk_mode = str(config.get("risk_preset") or risk_profile_state.get("mode") or "medium").lower()
+    if reapply_risk and risk_mode in RISK_PRESETS:
+        current_mode = str(risk_profile_state.get("mode") or "").lower()
+        if current_mode != risk_mode:
+            apply_risk_preset(risk_mode, persist=False, silent=True, sync_persona=False)
+    else:
+        risk_mode = str(risk_profile_state.get("mode") or risk_mode)
+
+    override_weights = config.get("regime_weights")
+    fresh_weights = deepcopy(BASE_REGIME_STRATEGY_WEIGHTS)
+    if isinstance(override_weights, Mapping):
+        for regime, overrides in override_weights.items():
+            if not isinstance(overrides, Mapping):
+                continue
+            bucket = fresh_weights.setdefault(regime, {})
+            for strategy_name, weight in overrides.items():
+                try:
+                    bucket[strategy_name] = float(weight)
+                except (TypeError, ValueError):
+                    continue
+
+    for regime, weights in fresh_weights.items():
+        total = sum(max(0.0, float(val)) for val in weights.values())
+        if total <= 0:
+            continue
+        for strategy_name in list(weights.keys()):
+            weights[strategy_name] = max(0.0, float(weights[strategy_name])) / total
+
+    REGIME_STRATEGY_WEIGHTS = fresh_weights
+    refresh_agent_roster(normalized)
+
+    ACTIVE_PERSONA_KEY = normalized
+    persona_runtime_state.update({
+        "key": normalized,
+        "label": config.get("label"),
+        "emoji": config.get("emoji"),
+        "tagline": config.get("tagline"),
+        "description": config.get("description"),
+        "source": source,
+    })
+
+    risk_profile_state["persona"] = normalized
+    risk_profile_state["persona_label"] = config.get("label")
+    risk_profile_state["persona_description"] = config.get("description")
+    risk_profile_state["persona_source"] = source
+    risk_profile_state["persona_risk_mode"] = risk_mode
+
+    if persist:
+        persist_risk_profile_state()
+
+    if announce:
+        emoji = (config.get("emoji") or persona_runtime_state.get("emoji") or "🧬")
+        label = config.get("label") or normalized.title()
+        tagline = config.get("tagline") or config.get("description") or ""
+        risk_label = risk_profile_state.get("label")
+        mode_display = risk_mode.upper() if risk_mode else str(risk_profile_state.get("mode") or "").upper()
+        print(f"{emoji} Persona activated: {label} ({normalized.upper()})")
+        if tagline:
+            print(f"   ↳ {tagline}")
+        if risk_label:
+            print(f"   ↳ Underlying risk preset: {mode_display} — {risk_label}")
+
+    return normalized
+
+
+def _coerce_iterable(value: object) -> tuple[str, ...]:
+    if isinstance(value, str) or value is None:
+        normalized = _normalize_persona_key(value) if value else None
+        return (normalized,) if normalized else tuple()
+    if isinstance(value, Mapping):
+        return tuple()
+    result: list[str] = []
+    for item in value:  # type: ignore[arg-type]
+        normalized = _normalize_persona_key(item)
+        if normalized:
+            result.append(normalized)
+    return tuple(result)
+
+
+def build_agent_definitions(persona_key: str | None) -> list[dict[str, object]]:
+    """Construct agent definitions with persona-specific overrides applied."""
+
+    overrides_cfg = PERSONA_PROFILES.get(persona_key or "", {}).get("agent_overrides")
+    overrides: dict[str, Mapping[str, object]] = (
+        overrides_cfg if isinstance(overrides_cfg, Mapping) else {}
+    )  # type: ignore[assignment]
+
+    base_definitions = globals().get("BASE_AGENT_DEFINITIONS")
+    if not base_definitions:
+        return []
+
+    definitions: list[dict[str, object]] = []
+    for base_definition in deepcopy(base_definitions):
+        label = str(base_definition.get("label") or "")
+        override = overrides.get(label)
+        include = True
+
+        if override:
+            if override.get("enabled") is False:
+                include = False
+            else:
+                for key, value in override.items():
+                    if key == "enabled":
+                        continue
+                    if key == "params" and isinstance(value, Mapping):
+                        params = dict(base_definition.get("params", {}))
+                        params.update(value)  # type: ignore[arg-type]
+                        base_definition["params"] = params
+                    elif key == "modes":
+                        modes_tuple = tuple(
+                            str(item).lower()
+                            for item in (value if isinstance(value, (list, tuple, set)) else (value,))
+                        )
+                        base_definition["modes"] = modes_tuple
+                    elif key == "personas":
+                        personas_tuple = _coerce_iterable(value)
+                        base_definition["personas"] = personas_tuple
+                    else:
+                        base_definition[key] = value
+
+        if include:
+            definitions.append(base_definition)
+
+    return definitions
+
+
+def refresh_agent_roster(persona_key: str | None) -> None:
+    global agent_definitions, agent_dict
+
+    agent_definitions = build_agent_definitions(persona_key)
+    persona_label = str(risk_profile_state.get("persona_label") or "").strip()
+    if not persona_label:
+        persona_label = (persona_key or "baseline").upper()
+
+    roster_count = len(agent_definitions)
+    print(f"🧠 Strategy roster: {roster_count} profiles active for persona {persona_label}")
+
+    agent_dict = {
+        symbol: [
+            {
+                'label': definition['label'],
+                'agent': definition['cls'](**definition.get('params', {})),
+                'sl_mult': definition.get('sl_mult', SL_ATR_MULTIPLIER),
+                'tp_mult': definition.get('tp_mult', TP_ATR_MULTIPLIER),
+                'priority': definition.get('priority', 999),
+                'modes': tuple(m.lower() for m in definition.get('modes', ())) or None,
+                'personas': tuple(definition.get('personas', ())) or None,
+                'atr_period': definition.get('atr_period', ATR_PERIOD),
+            }
+            for definition in agent_definitions
+        ]
+        for symbol in ALL_SYMBOLS
+    }
 
 # News/Economic Event Filtering - avoid trading around major announcements
 NEWS_BLACKOUT_TIMES = {
@@ -3756,7 +5059,7 @@ NEWS_BOOST_MINUTES = 90     # Minutes after major news for increased activity
 # Multi-timeframe confirmation settings
 ENABLE_MTF_CONFIRMATION = True  # Enable multi-timeframe signal confirmation
 MTF_TIMEFRAMES = [
-    mt5.TIMEFRAME_M15,  # Primary timeframe (current)
+    PRIMARY_TIMEFRAME,  # Primary timeframe (current)
     mt5.TIMEFRAME_H1,   # Higher timeframe for trend confirmation
 ]
 MTF_LOOKBACK_BARS = 20  # Bars to fetch for higher timeframe analysis
@@ -4280,6 +5583,7 @@ def execute_margin_unwind(
     status = str(margin_status.get("status") or "clear")
     usage = float(margin_status.get("usage", 0.0) or 0.0)
     free_ratio = float(margin_status.get("free_ratio", 1.0) or 1.0)
+    severity_gate = max(0.18, float(MARGIN_UNWIND_TRIGGER_SEVERITY) * 0.5)
 
     should_unwind = False
     trigger_reason = ""
@@ -4287,12 +5591,24 @@ def execute_margin_unwind(
     if not allowed or status == "blocked":
         should_unwind = True
         trigger_reason = "blocked"
-    elif status == "throttle" or throttle < MARGIN_UNWIND_TRIGGER_THROTTLE or severity >= MARGIN_UNWIND_TRIGGER_SEVERITY:
-        should_unwind = True
-        trigger_reason = "throttle"
+    else:
+        throttle_deficit = max(0.0, MARGIN_UNWIND_TRIGGER_THROTTLE - throttle)
+        severity_triggered = severity >= MARGIN_UNWIND_TRIGGER_SEVERITY
+        throttle_triggered = throttle_deficit >= 0.05 and severity >= severity_gate
+        persistent_throttle = status == "throttle" and severity >= max(severity_gate, 0.25)
+
+        if throttle_triggered or severity_triggered or persistent_throttle:
+            should_unwind = True
+            trigger_reason = "throttle"
 
     if not should_unwind:
         return stats
+
+    if status != "blocked":
+        throttle_deficit = max(0.0, MARGIN_UNWIND_TRIGGER_THROTTLE - throttle)
+        if throttle_deficit < 0.05 and severity < severity_gate:
+            stats["reason"] = "deferred"
+            return stats
 
     now = datetime.now(timezone.utc)
     last_unwind_iso = margin_guard_state.get("last_unwind")
@@ -4313,7 +5629,7 @@ def execute_margin_unwind(
         target_fraction = MARGIN_UNWIND_BLOCK_REDUCTION + severity * 0.25
     else:
         throttle_deficit = max(0.0, MARGIN_UNWIND_TRIGGER_THROTTLE - throttle)
-        target_fraction = MARGIN_UNWIND_MIN_REDUCTION + (throttle_deficit * 0.8) + (severity * 0.4)
+        target_fraction = MARGIN_UNWIND_MIN_REDUCTION + (throttle_deficit * 0.6) + (severity * 0.35)
 
     target_fraction = max(MARGIN_UNWIND_MIN_REDUCTION, min(MARGIN_UNWIND_MAX_REDUCTION, target_fraction))
     target_volume = max(MARGIN_UNWIND_MIN_VOLUME, total_volume * target_fraction)
@@ -4398,6 +5714,159 @@ def execute_margin_unwind(
     return stats
 
 
+def execute_dynamic_var_unwind(
+    var_state: Mapping[str, object] | None,
+    positions: Iterable[Any],
+) -> dict[str, float | int | str | bool]:
+    """Trim aggregate exposure when the dynamic VaR clamp is pegged at its minimum."""
+    stats: dict[str, float | int | str | bool] = {
+        "attempted": False,
+        "closed_tickets": 0,
+        "closed_volume": 0.0,
+        "failures": 0,
+        "reason": "",
+    }
+
+    if not DYNAMIC_VAR_ENABLED or not DYNAMIC_VAR_UNWIND_ENABLED:
+        return stats
+
+    if not isinstance(var_state, Mapping):
+        return stats
+
+    position_list = list(positions or [])
+    if not position_list:
+        return stats
+
+    sample_size = int(var_state.get("sample_size", 0) or 0)
+    if sample_size < max(10, int(DYNAMIC_VAR_SAMPLE_FLOOR)):
+        return stats
+
+    factor = float(var_state.get("factor", 1.0) or 1.0)
+    status = str(var_state.get("status") or "idle")
+    var_value = max(0.0, float(var_state.get("var", 0.0) or 0.0))
+    target_var = max(1e-6, float(DYNAMIC_VAR_TARGET))
+
+    if status != "clamp":
+        return stats
+
+    clamp_intensity = max(
+        0.0,
+        1.0 - (factor / max(float(DYNAMIC_VAR_MIN_FACTOR), 1e-6)),
+    )
+    excess_ratio = max(0.0, (var_value - target_var) / target_var)
+
+    if clamp_intensity < float(DYNAMIC_VAR_UNWIND_MIN_SEVERITY) and excess_ratio < float(DYNAMIC_VAR_UNWIND_EXCESS_RATIO):
+        return stats
+
+    now = datetime.now(timezone.utc)
+    last_unwind_iso = dynamic_var_unwind_state.get("last_unwind")
+    if isinstance(last_unwind_iso, str):
+        try:
+            last_unwind = datetime.fromisoformat(last_unwind_iso)
+            if (now - last_unwind).total_seconds() < float(DYNAMIC_VAR_UNWIND_GRACE_SECONDS):
+                stats["reason"] = "cooldown"
+                return stats
+        except ValueError:
+            pass
+
+    total_volume = sum(max(0.0, float(getattr(pos, "volume", 0.0) or 0.0)) for pos in position_list)
+    if total_volume <= 0.0:
+        return stats
+
+    base_fraction = float(DYNAMIC_VAR_UNWIND_FACTOR)
+    base_fraction += min(0.18, excess_ratio * 0.25)
+    base_fraction += min(0.12, clamp_intensity * 0.35)
+
+    target_fraction = max(0.12, min(float(DYNAMIC_VAR_UNWIND_PER_CYCLE_LIMIT), base_fraction))
+    target_volume = total_volume * target_fraction
+    if target_volume <= MIN_LOT_SIZE * 0.8:
+        target_volume = total_volume * max(0.10, target_fraction)
+
+    stats["attempted"] = True
+    stats["reason"] = "dynamic_var_clamp"
+
+    sorted_positions: list[dict[str, float | int | str]] = []
+    for pos in position_list:
+        volume = float(getattr(pos, "volume", 0.0) or 0.0)
+        if volume <= 0:
+            continue
+        profit = float(getattr(pos, "profit", 0.0) or 0.0)
+        margin = float(getattr(pos, "margin", 0.0) or 0.0)
+        symbol = str(getattr(pos, "symbol", ""))
+        ticket = int(getattr(pos, "ticket", 0))
+        sorted_positions.append(
+            {
+                "ticket": ticket,
+                "volume": volume,
+                "profit": profit,
+                "margin": margin,
+                "symbol": symbol,
+            }
+        )
+
+    if not sorted_positions:
+        return stats
+
+    sorted_positions.sort(
+        key=lambda entry: (
+            0 if float(entry.get("profit", 0.0) or 0.0) < 0 else 1,
+            -float(entry.get("volume", 0.0) or 0.0),
+            -abs(float(entry.get("margin", 0.0) or 0.0)),
+        )
+    )
+
+    remaining = min(target_volume, total_volume * float(DYNAMIC_VAR_UNWIND_PER_CYCLE_LIMIT))
+    for entry in sorted_positions:
+        if remaining <= MIN_LOT_SIZE * 0.4:
+            break
+
+        ticket = int(entry["ticket"])
+        volume = float(entry["volume"])
+        if volume <= 0:
+            continue
+
+        close_amount = min(volume, remaining)
+        if close_amount < MIN_LOT_SIZE:
+            if remaining >= volume - (MIN_LOT_SIZE * 0.4):
+                close_amount = volume
+            else:
+                continue
+
+        success = close_partial_position(ticket, close_amount, reason="Dynamic VaR unwind")
+        if success:
+            stats["closed_tickets"] += 1
+            stats["closed_volume"] += close_amount
+            remaining = max(0.0, remaining - close_amount)
+            time.sleep(0.2)
+        else:
+            stats["failures"] += 1
+
+    if stats["closed_volume"] > 0:
+        dynamic_var_unwind_state["last_unwind"] = now.isoformat()
+        print(
+            "🪙 Dynamic VaR unwind: trimmed "
+            f"{stats['closed_volume']:.2f} lots across {stats['closed_tickets']} tickets "
+            f"(factor {factor:.2f}, excess {excess_ratio:.0%}, clamp {clamp_intensity:.0%})."
+        )
+        telemetry.emit(
+            "dynamic_var_unwind",
+            closed_volume=stats["closed_volume"],
+            closed_tickets=stats["closed_tickets"],
+            factor=factor,
+            var_value=var_value,
+            excess_ratio=excess_ratio,
+            clamp_intensity=clamp_intensity,
+            sample_size=sample_size,
+        )
+    elif stats["attempted"]:
+        print(
+            "⚠️ Dynamic VaR unwind attempt produced no position reductions "
+            f"(factor {factor:.2f}, excess {excess_ratio:.0%}, clamp {clamp_intensity:.0%})."
+        )
+
+    return stats
+
+
 def clear_counter_signal_state(symbol: str) -> None:
     """Reset accumulated counter-signal tracking for the given symbol."""
     counter_signal_tracker.pop(symbol, None)
@@ -4431,7 +5900,7 @@ def should_force_counter_exit(
 
     effective_atr = float(atr_value) if atr_value else None
     if effective_atr is None or effective_atr <= 0:
-        effective_atr = calculate_atr(symbol, timeframe=mt5.TIMEFRAME_M15, period=ATR_PERIOD)
+        effective_atr = calculate_atr(symbol, timeframe=PRIMARY_TIMEFRAME, period=ATR_PERIOD)
     if effective_atr is None or effective_atr <= 0:
         return False, None
 
@@ -4625,6 +6094,8 @@ def confirm_with_micro_momentum(
         override_used = False
         guard_factor_val = float(guard_factor) if guard_factor is not None else 1.0
         guard_factor_val = max(0.0, min(guard_factor_val, 1.5))
+        guard_pressure = max(0.0, 1.0 - guard_factor_val)
+        guard_relief = max(0.0, guard_factor_val - 1.0)
         request_count = MICRO_MOMENTUM_LOOKBACK + 3
         rates = mt5.copy_rates_from_pos(symbol, MICRO_MOMENTUM_TIMEFRAME, 0, request_count)
         if rates is None or len(rates) < MICRO_MOMENTUM_LOOKBACK + 2:
@@ -4651,6 +6122,11 @@ def confirm_with_micro_momentum(
             threshold *= 0.85
         threshold = max(MICRO_MOMENTUM_MIN_THRESHOLD, threshold)
 
+        if guard_pressure > 0.0:
+            threshold *= 1.0 + min(0.35, guard_pressure * 0.55)
+        elif guard_relief > 0.0:
+            threshold *= max(0.75, 1.0 - min(0.20, guard_relief * 0.18))
+
         same_dir_dd_atr, opposite_dir_dd_atr, worst_dd_atr, total_dd_atr = _calculate_drawdown_pressure_atr(
             open_positions,
             atr_value,
@@ -4668,6 +6144,10 @@ def confirm_with_micro_momentum(
         tolerance = threshold * AGGRESSIVE_MICRO_TOLERANCE
         if drawdown_pressure_atr > 0:
             tolerance *= 1.0 + min(0.6, drawdown_pressure_atr * 0.3)
+        if guard_pressure > 0.0:
+            tolerance *= max(0.55, 1.0 - guard_pressure * 0.65)
+        elif guard_relief > 0.0:
+            tolerance *= 1.0 + min(0.25, guard_relief * 0.30)
         alignment_ratio = AGGRESSIVE_MICRO_MIN_RATIO
         if regime == 'VOLATILE':
             alignment_ratio *= 0.5
@@ -4675,6 +6155,10 @@ def confirm_with_micro_momentum(
             alignment_ratio *= 0.75
         if drawdown_pressure_atr > 0:
             alignment_ratio *= max(0.4, 1.0 - min(1.5, drawdown_pressure_atr) * 0.2)
+        if guard_pressure > 0.0:
+            alignment_ratio *= max(0.45, 1.0 - guard_pressure * 0.85)
+        elif guard_relief > 0.0:
+            alignment_ratio *= 1.0 + min(0.30, guard_relief * 0.35)
         alignment_ratio = max(0.05, alignment_ratio)
         required_alignment = threshold * alignment_ratio
 
@@ -4697,9 +6181,20 @@ def confirm_with_micro_momentum(
             print(
                 f"🩹 {symbol}: Drawdown override for {signal.upper()} (pressure {drawdown_pressure_atr:.2f} ATR, momentum {aligned_momentum:+.2%} within tolerance)."
             )
+            telemetry.emit(
+                "micro_override",
+                symbol=symbol,
+                signal=signal,
+                regime=regime,
+                kind="drawdown_relief",
+                guard_factor=round(guard_factor_val, 4),
+                drawdown_atr=round(drawdown_pressure_atr, 4),
+                momentum=float(momentum_score),
+                threshold=float(threshold),
+            )
             return True, float(momentum_score), threshold, soft_pass, override_used
 
-        if AGGRESSIVE_MODE and regime in ('TRENDING', 'VOLATILE'):
+        if AGGRESSIVE_MODE and regime in ('TRENDING', 'VOLATILE') and guard_factor_val >= max(MICRO_MOMENTUM_GUARD_MIN, 0.96):
             if aligned_momentum >= required_alignment:
                 soft_pass = True
                 override_used = True
@@ -4710,9 +6205,24 @@ def confirm_with_micro_momentum(
                 print(
                     f"⚡ {symbol}: Aggressive micro override for {signal.upper()} (aligned {aligned_momentum:+.2%} within tolerance {tolerance_pct}, required {required_pct})."
                 )
+                telemetry.emit(
+                    "micro_override",
+                    symbol=symbol,
+                    signal=signal,
+                    regime=regime,
+                    kind="aggressive_mode",
+                    guard_factor=round(guard_factor_val, 4),
+                    drawdown_atr=round(drawdown_pressure_atr, 4),
+                    momentum=float(momentum_score),
+                    threshold=float(threshold),
+                    required_alignment=float(required_alignment),
+                    tolerance=float(tolerance),
+                )
                 return True, float(momentum_score), threshold, soft_pass, override_used
 
         guard_relaxed = guard_factor_val >= MICRO_MOMENTUM_GUARD_MIN
+        if drawdown_pressure_atr > 0.4:
+            guard_relaxed = guard_relaxed and guard_factor_val >= (MICRO_MOMENTUM_GUARD_MIN + 0.05)
         drawdown_ok = drawdown_pressure_atr <= MICRO_MOMENTUM_NEAR_MISS_MAX_DD
         near_miss_ratio = MICRO_MOMENTUM_NEAR_MISS_RATIO
 
@@ -4723,12 +6233,36 @@ def confirm_with_micro_momentum(
                 print(
                     f"🪄 {symbol}: Guard-approved micro near-miss for BUY (score {momentum_score:+.2%} vs threshold {threshold:.2%}, guard {guard_factor_val:.2f})."
                 )
+                telemetry.emit(
+                    "micro_override",
+                    symbol=symbol,
+                    signal=signal,
+                    regime=regime,
+                    kind="guard_near_miss",
+                    guard_factor=round(guard_factor_val, 4),
+                    drawdown_atr=round(drawdown_pressure_atr, 4),
+                    momentum=float(momentum_score),
+                    threshold=float(threshold),
+                    near_miss_ratio=float(near_miss_ratio),
+                )
                 return True, float(momentum_score), threshold, soft_pass, override_used
             if signal == 'sell' and momentum_score <= -threshold * near_miss_ratio:
                 soft_pass = True
                 override_used = True
                 print(
                     f"🪄 {symbol}: Guard-approved micro near-miss for SELL (score {momentum_score:+.2%} vs threshold {-threshold:.2%}, guard {guard_factor_val:.2f})."
+                )
+                telemetry.emit(
+                    "micro_override",
+                    symbol=symbol,
+                    signal=signal,
+                    regime=regime,
+                    kind="guard_near_miss",
+                    guard_factor=round(guard_factor_val, 4),
+                    drawdown_atr=round(drawdown_pressure_atr, 4),
+                    momentum=float(momentum_score),
+                    threshold=float(threshold),
+                    near_miss_ratio=float(near_miss_ratio),
                 )
                 return True, float(momentum_score), threshold, soft_pass, override_used
 
@@ -4738,14 +6272,35 @@ def confirm_with_micro_momentum(
             guard_min = max(0.0, float(HIGH_RISK_MICRO_GUARD_MIN))
             max_drawdown = max(0.0, float(HIGH_RISK_MICRO_MAX_DRAWDOWN))
             if neutral_ratio > 0.0 and guard_factor_val >= guard_min and drawdown_pressure_atr <= max_drawdown:
-                neutral_band = threshold * neutral_ratio
-                if abs(momentum_score) <= neutral_band:
+                guard_window = max(0.05, 1.35 - guard_min)
+                guard_scale = min(1.0, max(0.0, (guard_factor_val - guard_min) / guard_window))
+                if drawdown_pressure_atr > 0:
+                    drawdown_scale = max(0.0, 1.0 - min(1.0, drawdown_pressure_atr / max_drawdown))
+                    guard_scale *= drawdown_scale
+                if guard_scale > 0.0:
+                    neutral_band = threshold * neutral_ratio * guard_scale
+                else:
+                    neutral_band = 0.0
+                if neutral_band > 0.0 and abs(momentum_score) <= neutral_band and aligned_momentum >= -threshold * 0.12:
                     soft_pass = True
                     override_used = True
                     direction = signal.upper()
                     band_pct = neutral_band
                     print(
-                        f"🔥 {symbol}: High-risk neutral micro override for {direction} (score {momentum_score:+.2%} within ±{band_pct:.2%}, guard {guard_factor_val:.2f})."
+                        f"🔥 {symbol}: High-risk neutral micro override for {direction} (score {momentum_score:+.2%} within ±{band_pct:.2%}, guard {guard_factor_val:.2f}, scale {guard_scale:.2f})."
+                    )
+                    telemetry.emit(
+                        "micro_override",
+                        symbol=symbol,
+                        signal=signal,
+                        regime=regime,
+                        kind="high_risk_neutral",
+                        guard_factor=round(guard_factor_val, 4),
+                        drawdown_atr=round(drawdown_pressure_atr, 4),
+                        momentum=float(momentum_score),
+                        threshold=float(threshold),
+                        neutral_band=float(neutral_band),
+                        guard_scale=round(guard_scale, 4),
                     )
                     return True, float(momentum_score), threshold, soft_pass, override_used
 
@@ -5348,7 +6903,22 @@ if not mt5.initialize():
 # Load strategy performance data
 load_strategy_performance()
 load_risk_guard_state()
-load_risk_profile_state()
+
+seed_persona = REQUESTED_PERSONA_KEY or _normalize_persona_key(DEFAULT_PERSONA_KEY)
+seed_config = PERSONA_PROFILES.get(seed_persona or "", {})
+seed_risk_mode = str(seed_config.get("risk_preset") or "medium")
+load_risk_profile_state(default_mode=seed_risk_mode)
+
+persisted_persona = _normalize_persona_key(risk_profile_state.get("persona"))
+persona_choice = REQUESTED_PERSONA_KEY or persisted_persona or _normalize_persona_key(DEFAULT_PERSONA_KEY)
+persona_source = (
+    REQUESTED_PERSONA_SOURCE
+    if REQUESTED_PERSONA_KEY
+    else ("state" if persisted_persona else "default")
+)
+_INITIAL_PERSONA_CHOICE = persona_choice
+_INITIAL_PERSONA_SOURCE = persona_source
+_INITIAL_PERSONA_PERSIST = bool(persisted_persona and not REQUESTED_PERSONA_KEY)
 
 initial_equity = get_account_equity_quiet()
 if initial_equity > 0:
@@ -5357,7 +6927,7 @@ else:
     print("⚠️  Unable to prime risk guard with account equity (0 received).")
 
 # Agent settings for each strategy - OPTIMIZED FROM BACKTESTING
-agent_definitions = [
+BASE_AGENT_DEFINITIONS: list[dict[str, object]] = [
     {
         'label': 'Breakout',
         'cls': BreakoutAgent,
@@ -5403,22 +6973,23 @@ agent_definitions = [
         'priority': 1,
         'atr_period': 7,
     },
+    {
+        'label': 'Impulse Scalper',
+        'cls': ImpulseScalpAgent,
+        'params': {'ema_fast': 3, 'ema_slow': 8, 'rsi_period': 7, 'vol_floor': 0.0005},
+        'sl_mult': 1.45,
+        'tp_mult': 1.9,
+        'priority': 1.5,
+        'atr_period': 4,
+        'modes': ('high',),
+    },
 ]
 
-# For each symbol, create a dict of agents
-agent_dict = {
-    symbol: [
-        {
-            'label': definition['label'],
-            'agent': definition['cls'](**definition['params']),
-            'sl_mult': definition.get('sl_mult', SL_ATR_MULTIPLIER),
-            'tp_mult': definition.get('tp_mult', TP_ATR_MULTIPLIER),
-            'priority': definition.get('priority', 999),
-        }
-        for definition in agent_definitions
-    ]
-    for symbol in ALL_SYMBOLS
-}
+activate_persona(
+    _INITIAL_PERSONA_CHOICE,
+    source=_INITIAL_PERSONA_SOURCE,
+    persist=_INITIAL_PERSONA_PERSIST,
+)
 
 def ensure_connection_ready() -> bool:
     """Verify the terminal connection and attempt a reinitialize if needed."""
@@ -5495,9 +7066,15 @@ def calculate_position_size(
             return 0.1
         return 0.5
 
+    sizing_overrides = resolve_symbol_sizing_overrides(symbol or getattr(symbol_info, "name", None))
+
     # Risk amount in account currency (bounded multiplier)
     bounded_multiplier = max(RISK_MULTIPLIER_MIN, min(RISK_MULTIPLIER_MAX, risk_multiplier))
     risk_amount = account_balance * ACCOUNT_RISK_PER_TRADE * bounded_multiplier
+
+    risk_scale = sizing_overrides.get("risk_scale") if isinstance(sizing_overrides, Mapping) else None
+    if isinstance(risk_scale, (int, float)) and risk_scale > 0:
+        risk_amount *= float(risk_scale)
 
     # Expected loss per unit if SL is hit
     base_tick_size = getattr(symbol_info, 'point', 0.01) if symbol_info is not None else 0.01
@@ -5520,6 +7097,14 @@ def calculate_position_size(
 
     # Apply limits
     position_size = max(MIN_LOT_SIZE, min(optimal_size, MAX_LOT_SIZE))
+
+    if sizing_overrides:
+        min_volume = sizing_overrides.get("min_volume")
+        max_volume = sizing_overrides.get("max_volume")
+        if isinstance(min_volume, (int, float)) and min_volume > 0:
+            position_size = max(position_size, float(min_volume))
+        if isinstance(max_volume, (int, float)) and max_volume > 0:
+            position_size = min(position_size, float(max_volume))
 
     return round(position_size, 2)
 
@@ -5990,6 +7575,320 @@ def calculate_signal_confidence(
     return round(float(min(1.8, confidence)), 3)
 
 
+def _ml_log_once(key: str, message: str) -> None:
+    if not ML_CONFIDENCE_VERBOSE or not message:
+        return
+    logged = cast(set[str], ml_confidence_runtime.setdefault("log_once", set()))
+    if key in logged:
+        return
+    print(message)
+    logged.add(key)
+
+
+def _get_ml_model() -> TradeOutcomeModel | None:
+    if not ML_CONFIDENCE_ENABLED:
+        _ml_log_once("ml-disabled", "🤖 ML confidence multiplier disabled via environment toggle.")
+        return None
+
+    cached = ml_confidence_runtime.get("model")
+    if isinstance(cached, TradeOutcomeModel):
+        return cached
+
+    if not bool(ml_confidence_runtime.get("available", True)):
+        return None
+
+    try:
+        model = load_trade_outcome_model(ML_CONFIDENCE_MODEL_PATH)
+    except FileNotFoundError:
+        ml_confidence_runtime["available"] = False
+        ml_confidence_runtime["last_error"] = f"missing model at {ML_CONFIDENCE_MODEL_PATH}"
+        _ml_log_once(
+            "ml-missing",
+            f"🤖 ML confidence model not found at {ML_CONFIDENCE_MODEL_PATH}; continuing without probability scaling.",
+        )
+        return None
+    except Exception as exc:  # pragma: no cover - defensive against runtime loader issues
+        ml_confidence_runtime["available"] = False
+        ml_confidence_runtime["last_error"] = str(exc)
+        _ml_log_once(
+            "ml-error",
+            f"🤖 ML confidence model failed to load ({exc}); disabling multiplier for this run.",
+        )
+        return None
+
+    ml_confidence_runtime["model"] = model
+    ml_confidence_runtime["available"] = True
+    ml_confidence_runtime["last_error"] = ""
+    if getattr(model, "synthetic", False):
+        _ml_log_once(
+            "ml-synthetic",
+            "🤖 ML confidence model currently uses synthetic placeholder data; train on real telemetry to improve accuracy.",
+        )
+    trained_at = getattr(model, "trained_at", None)
+    if trained_at:
+        _ml_log_once(
+            "ml-loaded",
+            f"🤖 Loaded ML confidence model trained at {trained_at} from {ML_CONFIDENCE_MODEL_PATH}.",
+        )
+    else:
+        _ml_log_once("ml-loaded", f"🤖 Loaded ML confidence model from {ML_CONFIDENCE_MODEL_PATH}.")
+    training_rows = getattr(model, "training_rows", 0)
+    sklearn_version = getattr(model, "sklearn_version", None)
+    metadata_fragments: list[str] = []
+    if trained_at:
+        metadata_fragments.append(f"trained_at={trained_at}")
+    metadata_fragments.append(f"rows={training_rows}")
+    if sklearn_version:
+        metadata_fragments.append(f"sklearn={sklearn_version}")
+    if metadata_fragments:
+        _ml_log_once(
+            "ml-metadata",
+            "🤖 ML model metadata: " + ", ".join(metadata_fragments),
+        )
+    return model
+
+
+def _resolve_symbol_swap(symbol_info, direction: str) -> float:
+    if symbol_info is None:
+        return 0.0
+    attr = "swap_long" if direction == "buy" else "swap_short"
+    return float(getattr(symbol_info, attr, 0.0) or 0.0)
+
+
+def _resolve_model_costs(
+    model: TradeOutcomeModel,
+    symbol: str,
+    direction: str,
+    symbol_info,
+) -> tuple[float, float, float]:
+    profile = model.get_cost_estimate(symbol, direction)
+    swap_per_lot = float(profile.get("swap_per_lot", 0.0) or 0.0)
+    commission_per_lot = float(profile.get("commission_per_lot", 0.0) or 0.0)
+
+    if not math.isfinite(swap_per_lot) or swap_per_lot == 0.0:
+        swap_per_lot = _resolve_symbol_swap(symbol_info, direction)
+    if not math.isfinite(commission_per_lot) or commission_per_lot == 0.0:
+        commission_per_lot = _resolve_commission(symbol)
+
+    expected_cost = swap_per_lot + commission_per_lot
+    return swap_per_lot, commission_per_lot, expected_cost
+
+
+def _probability_to_multiplier(probability: float) -> float:
+    low = min(float(ML_CONFIDENCE_LOW_PROB), float(ML_CONFIDENCE_HIGH_PROB))
+    high = max(float(ML_CONFIDENCE_LOW_PROB), float(ML_CONFIDENCE_HIGH_PROB))
+    if math.isclose(low, high):
+        high = min(0.95, low + 0.1)
+
+    min_mult = min(float(ML_CONFIDENCE_MIN_MULTIPLIER), float(ML_CONFIDENCE_MAX_MULTIPLIER))
+    max_mult = max(float(ML_CONFIDENCE_MIN_MULTIPLIER), float(ML_CONFIDENCE_MAX_MULTIPLIER))
+
+    if probability <= low:
+        return min_mult
+    if probability >= high:
+        return max_mult
+
+    # Piecewise linear mapping: low->mid toward 1.0, mid->high toward max
+    mid = 0.5 * (low + high)
+    if probability <= mid:
+        span = max(mid - low, 1e-6)
+        ratio = (probability - low) / span
+        return min_mult + ratio * (1.0 - min_mult)
+    span = max(high - mid, 1e-6)
+    ratio = (probability - mid) / span
+    return 1.0 + ratio * (max_mult - 1.0)
+
+
+def _apply_guard_dampening(multiplier: float, guard_factor: float | None) -> float:
+    if guard_factor is None:
+        return multiplier
+    guard_factor = max(0.0, float(guard_factor))
+
+    if multiplier <= 1.0:
+        return multiplier
+
+    threshold = max(0.01, min(float(ML_CONFIDENCE_GUARD_DAMP), 1.5))
+    if guard_factor >= threshold:
+        return multiplier
+
+    scale = guard_factor / threshold if threshold > 0 else 0.0
+    scale = max(0.0, min(1.0, scale))
+    return 1.0 + (multiplier - 1.0) * scale
+
+
+def _prepare_ml_feature_row(
+    *,
+    volume: float,
+    direction: str,
+    risk_price: float,
+    reward_price: float,
+    swap_per_lot: float,
+    commission_per_lot: float,
+    expected_cost_per_lot: float,
+    entry_dt: datetime,
+) -> dict[str, float]:
+    risk_price = max(0.0, float(risk_price))
+    reward_price = max(0.0, float(reward_price))
+    rr_ratio = reward_price / risk_price if risk_price > 0 else 0.0
+
+    direction_encoded = 1.0 if direction == "buy" else -1.0
+    entry_hour = float(getattr(entry_dt, "hour", -1))
+    entry_day = float(getattr(entry_dt, "weekday", lambda: -1)())
+
+    return {
+        "volume": max(MIN_LOT_SIZE, float(volume)),
+        "direction_encoded": direction_encoded,
+        "rr_ratio": float(rr_ratio),
+        "risk_price": risk_price,
+        "reward_price": reward_price,
+        "commission_per_lot": float(commission_per_lot),
+        "swap_per_lot": float(swap_per_lot),
+        "expected_cost_per_lot": float(expected_cost_per_lot),
+        "entry_hour": entry_hour,
+        "entry_dayofweek": entry_day,
+    }
+
+
+def _collect_ml_context_features(
+    guard_factor: float | None,
+) -> tuple[str, str | None, str | None, dict[str, float]]:
+    preset = str(risk_profile_state.get("mode") or "unknown").strip().lower() or "unknown"
+    persona_key = ACTIVE_PERSONA_KEY or _normalize_persona_key(risk_profile_state.get("persona"))
+    persona_label = risk_profile_state.get("persona_label")
+
+    settings = risk_profile_state.get("settings")
+    context_features: dict[str, float] = {}
+
+    if isinstance(settings, Mapping):
+        def _float_setting(name: str, default: float = 0.0) -> float:
+            value = settings.get(name)
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+
+        context_features.update(
+            {
+                "risk_account_risk": _float_setting("ACCOUNT_RISK_PER_TRADE"),
+                "risk_multiplier_max": _float_setting("RISK_MULTIPLIER_MAX"),
+                "risk_multiplier_relief": _float_setting("RISK_MULTIPLIER_RELIEF_MAX"),
+                "risk_soft_guard_limit": _float_setting("SOFT_GUARD_LIMIT"),
+                "risk_margin_usage_block": _float_setting("MARGIN_USAGE_BLOCK"),
+                "risk_low_vol_skip": _float_setting("LOW_VOL_SKIP_THRESHOLD"),
+                "risk_low_vol_scale": _float_setting("LOW_VOL_RISK_SCALE"),
+                "risk_micro_guard_min": _float_setting("MICRO_MOMENTUM_GUARD_MIN"),
+                "risk_high_micro_guard_min": _float_setting("HIGH_RISK_MICRO_GUARD_MIN"),
+                "risk_scan_interval": _float_setting("SCAN_INTERVAL_SECONDS"),
+                "risk_min_session_priority": _float_setting("MIN_SESSION_PRIORITY"),
+                "risk_alpha_session_priority": _float_setting("ALPHA_SURGE_MIN_SESSION_PRIORITY"),
+                "risk_dynamic_var_enabled": 1.0 if bool(settings.get("DYNAMIC_VAR_ENABLED")) else 0.0,
+                "risk_equity_governor_enabled": 1.0 if bool(settings.get("EQUITY_GOVERNOR_ENABLED")) else 0.0,
+            }
+        )
+
+    if guard_factor is not None and math.isfinite(guard_factor):
+        guard_value = max(0.0, float(guard_factor))
+        context_features.setdefault("guard_factor_at_entry", guard_value)
+        context_features.setdefault("guard_combined_at_entry", guard_value)
+        context_features.setdefault("guard_risk_allowed_at_entry", 1.0 if guard_value > 0 else 0.0)
+
+    return preset, persona_key, persona_label, context_features
+
+
+def compute_ml_confidence_multiplier(
+    symbol: str,
+    strategy_key: str,
+    direction: str,
+    *,
+    atr_value: float | None,
+    sl_mult: float,
+    tp_mult: float,
+    risk_multiplier: float,
+    guard_factor: float | None,
+    account_info,
+    symbol_info,
+    timestamp: datetime,
+) -> tuple[float | None, dict[str, float]]:
+    if not ML_CONFIDENCE_ENABLED:
+        return None, {"reason": "disabled"}
+
+    if direction not in ("buy", "sell"):
+        return None, {"reason": "invalid-direction"}
+
+    if atr_value is None or atr_value <= 0 or sl_mult <= 0 or tp_mult <= 0:
+        return None, {"reason": "missing-vol-metrics"}
+
+    model = _get_ml_model()
+    if model is None:
+        return None, {"reason": "model-unavailable"}
+
+    account_balance = 0.0
+    if account_info is not None:
+        account_balance = float(getattr(account_info, "equity", 0.0) or getattr(account_info, "balance", 0.0) or 0.0)
+
+    position_volume = calculate_position_size(
+        symbol_info,
+        float(atr_value),
+        float(sl_mult),
+        risk_multiplier=risk_multiplier,
+        account_balance=account_balance if account_balance > 0 else None,
+        symbol=symbol,
+    )
+
+    swap_per_lot, commission_per_lot, expected_cost = _resolve_model_costs(
+        model,
+        symbol,
+        direction,
+        symbol_info,
+    )
+
+    risk_price = float(atr_value) * float(sl_mult)
+    reward_price = float(atr_value) * float(tp_mult)
+    entry_dt = timestamp if isinstance(timestamp, datetime) else datetime.utcnow()
+
+    features = _prepare_ml_feature_row(
+        volume=position_volume,
+        direction=direction,
+        risk_price=risk_price,
+        reward_price=reward_price,
+        swap_per_lot=swap_per_lot,
+        commission_per_lot=commission_per_lot,
+        expected_cost_per_lot=expected_cost,
+        entry_dt=entry_dt,
+    )
+
+    risk_preset_key, persona_key, persona_label, context_features = _collect_ml_context_features(guard_factor)
+    if context_features:
+        features.update(context_features)
+
+    probability = model.predict_probability(
+        features,
+        symbol=symbol,
+        strategy_key=strategy_key,
+        risk_preset=risk_preset_key,
+        persona=persona_key,
+    )
+    raw_multiplier = _probability_to_multiplier(probability)
+    multiplier = _apply_guard_dampening(raw_multiplier, guard_factor)
+    multiplier = max(float(ML_CONFIDENCE_MIN_MULTIPLIER), min(float(ML_CONFIDENCE_MAX_MULTIPLIER), multiplier))
+
+    context = {
+        "probability": probability,
+        "volume": position_volume,
+        "risk_price": risk_price,
+        "reward_price": reward_price,
+        "swap_per_lot": swap_per_lot,
+        "commission_per_lot": commission_per_lot,
+        "expected_cost_per_lot": expected_cost,
+        "raw_multiplier": raw_multiplier,
+        "multiplier": multiplier,
+        "risk_preset": risk_preset_key,
+        "persona": persona_key,
+        "persona_label": persona_label,
+    }
+    return multiplier, context
+
+
 def adjust_risk_with_confidence(multiplier: float, confidence: float) -> float:
     """Tilt risk multiplier up/down based on confidence."""
     adjusted = multiplier
@@ -6092,6 +7991,7 @@ def send_order(
     point = getattr(symbol_info, 'point', None) or 0.0001
     spread_points = (spread / point) if (spread is not None and point) else float('inf')
     atr_reference = atr if atr and atr > 0 else None
+    spread_ratio: float | None = None
 
     if spread is not None and point:
         if atr_reference:
@@ -6184,15 +8084,21 @@ def send_order(
     if warnings:
         outcome["warnings"] = warnings
 
-    if spread_points > SPREAD_POINTS_LIMIT:
-        print(f"🚫 {symbol}: Spread {spread_points:.1f} points exceeds limit {SPREAD_POINTS_LIMIT}")
+    spread_points_limit, spread_ratio_limit = resolve_symbol_spread_limits(symbol)
+
+    if spread_points > spread_points_limit:
+        print(
+            f"🚫 {symbol}: Spread {spread_points:.1f} points exceeds limit {spread_points_limit:.1f}"
+        )
         outcome["reason"] = "spread limit"
         return outcome
 
     if atr_reference and atr_reference > 0 and spread is not None:
         spread_ratio = spread / atr_reference
-        if spread_ratio > SPREAD_ATR_RATIO_LIMIT:
-            print(f"🚫 {symbol}: Spread/ATR ratio {spread_ratio:.2f} exceeds limit {SPREAD_ATR_RATIO_LIMIT}")
+        if spread_ratio > spread_ratio_limit:
+            print(
+                f"🚫 {symbol}: Spread/ATR ratio {spread_ratio:.2f} exceeds limit {spread_ratio_limit:.2f}"
+            )
             outcome["reason"] = "spread/atr limit"
             return outcome
 
@@ -6211,6 +8117,25 @@ def send_order(
     tp = None
     effective_sl_mult = sl_mult if sl_mult is not None else SL_ATR_MULTIPLIER
     effective_tp_mult = tp_mult if tp_mult is not None else TP_ATR_MULTIPLIER
+
+    override_cfg = resolve_symbol_risk_overrides(symbol)
+    adjustment_notes: list[str] = []
+    if override_cfg:
+        override_sl = override_cfg.get("sl_mult")
+        override_tp = override_cfg.get("tp_mult")
+        if isinstance(override_sl, (int, float)):
+            effective_sl_mult = float(override_sl)
+            adjustment_notes.append(f"override sl→{effective_sl_mult:.2f}")
+        if isinstance(override_tp, (int, float)):
+            effective_tp_mult = float(override_tp)
+            adjustment_notes.append(f"override tp→{effective_tp_mult:.2f}")
+
+    effective_sl_mult, effective_tp_mult, spread_notes = adjust_stop_multipliers_for_spread(
+        effective_sl_mult,
+        effective_tp_mult,
+        spread_ratio,
+    )
+    adjustment_notes.extend(spread_notes)
     if atr is not None and atr > 0:
         sl_dist = effective_sl_mult * atr
         tp_dist = effective_tp_mult * atr
@@ -6246,7 +8171,11 @@ def send_order(
     if atr is None:
         print(f"ATR unavailable for {symbol}; sending order without SL/TP.")
     else:
-        print(f"{symbol} ATR={atr:.6f} | SL={sl} | TP={tp} (SLx={effective_sl_mult}, TPx={effective_tp_mult})")
+        context = " | ".join(adjustment_notes) if adjustment_notes else "baseline"
+        print(
+            f"{symbol} ATR={atr:.6f} | SL={sl} | TP={tp} (SLx={effective_sl_mult:.2f}, "
+            f"TPx={effective_tp_mult:.2f}) [{context}]"
+        )
 
     filling_type = resolve_filling_type(symbol_info)
     fill_label = describe_filling_type(filling_type)
@@ -6534,15 +8463,17 @@ try:
 
         guard_trading_allowed = risk_guard_allowed and soft_guard_allowed and margin_guard_allowed
 
+        daily_dd = float(risk_guard_state.get("daily_drawdown", 0.0) or 0.0)
+        weekly_dd = float(risk_guard_state.get("weekly_drawdown", 0.0) or 0.0)
+        risk_guard_status_label = "clear"
         if not RISK_GUARD_ENABLED:
+            risk_guard_status_label = "disabled"
             print("🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.")
         elif not risk_guard_allowed:
-            daily_dd = float(risk_guard_state.get("daily_drawdown", 0.0))
-            weekly_dd = float(risk_guard_state.get("weekly_drawdown", 0.0))
+            risk_guard_status_label = "blocked"
             print(f"🛑 Risk guard: blocking new entries (daily DD {daily_dd:.1%}, weekly DD {weekly_dd:.1%}).")
         elif guard_factor < 1.0:
-            daily_dd = float(risk_guard_state.get("daily_drawdown", 0.0))
-            weekly_dd = float(risk_guard_state.get("weekly_drawdown", 0.0))
+            risk_guard_status_label = "throttle"
             print(f"🛡️ Risk guard moderation: scaling risk to {guard_factor:.0%} (daily DD {daily_dd:.1%}, weekly DD {weekly_dd:.1%}).")
 
         print(
@@ -6592,6 +8523,52 @@ try:
                     f"🧭 Dynamic VaR calibrating: collected {sample_size}/{DYNAMIC_VAR_SAMPLE_FLOOR} return samples."
                 )
 
+        var_unwind_result = execute_dynamic_var_unwind(dynamic_var_snapshot, active_positions)
+        if var_unwind_result.get("closed_volume", 0.0) > 0:
+            cycle_stats['dynamic_var_unwind'] += 1
+            time.sleep(0.5)
+            account_info = mt5.account_info()
+            if account_info:
+                soft_guard_status = evaluate_soft_guard(
+                    getattr(account_info, 'balance', None),
+                    getattr(account_info, 'equity', None),
+                )
+                margin_guard_status = evaluate_margin_guard(account_info)
+            active_positions = list(mt5.positions_get() or [])
+            equity_snapshot = get_account_equity_quiet()
+            if equity_snapshot > 0:
+                update_risk_guard(equity_snapshot)
+                dynamic_var_snapshot = update_dynamic_var(equity_snapshot, timestamp=now_utc)
+                dynamic_var_factor = float(dynamic_var_snapshot.get("factor", 1.0) or 1.0)
+            print(
+                "⏸️ Dynamic VaR guard trimmed exposure; skipping remainder of scan to let positions settle."
+            )
+            log_cycle_summary(active_symbols, cycle_stats, scan_counter)
+            time.sleep(1.0)
+            continue
+        elif var_unwind_result.get("attempted"):
+            cycle_stats['dynamic_var_unwind_attempts'] += 1
+
+        position_snapshot_payload = collect_position_state_metrics(
+            active_positions,
+            account_info=account_info,
+            equity=equity_snapshot,
+            scan=scan_counter,
+        )
+        telemetry.emit("position_snapshot", **position_snapshot_payload)
+
+        soft_status = soft_guard_status.get("status", "clear")
+        margin_status = margin_guard_status.get("status", "clear")
+        combined_bucket = (
+            "blocked"
+            if not guard_trading_allowed
+            else "clamped"
+            if combined_guard_factor < 0.6
+            else "compressed"
+            if combined_guard_factor < 0.85
+            else "clear"
+        )
+
         telemetry.emit(
             "guard_snapshot",
             scan=scan_counter,
@@ -6603,7 +8580,15 @@ try:
             combined=round(combined_guard_factor, 4),
             equity_status=equity_governor_snapshot.get("status"),
             var_status=dynamic_var_snapshot.get("status"),
+            soft_status=soft_status,
+            margin_status=margin_status,
+            risk_status=risk_guard_status_label,
             risk_allowed=guard_trading_allowed,
+            combined_bucket=combined_bucket,
+            daily_drawdown=round(daily_dd, 4),
+            weekly_drawdown=round(weekly_dd, 4),
+            guard_pressure=round(max(0.0, 1.0 - guard_factor), 4),
+            guard_relief=round(max(0.0, guard_factor - 1.0), 4),
         )
 
         if SOFT_GUARD_ENABLED:
@@ -6650,391 +8635,472 @@ try:
             elif status_label == "throttle" and margin_guard_factor < 1.0:
                 print(f"🧯 Margin guard: throttling risk to {margin_guard_factor:.0%} (usage {usage:.0%}, free {free_ratio:.0%}{severity_pct}).")
 
+        current_risk_mode = str(risk_profile_state.get("mode") or "medium").lower()
+
         for symbol in active_symbols:
-                cycle_stats['symbols_total'] += 1
-                symbol_info = prepare_symbol(symbol)
-                if symbol_info is None:
-                    cycle_stats['symbols_failed_prepare'] += 1
-                    print(f"Skipping {symbol} because symbol preparation failed.")
-                    continue
+            cycle_stats['symbols_total'] += 1
+            symbol_info = prepare_symbol(symbol)
+            if symbol_info is None:
+                cycle_stats['symbols_failed_prepare'] += 1
+                print(f"Skipping {symbol} because symbol preparation failed.")
+                continue
 
-                tick = mt5.symbol_info_tick(symbol)
-                point = getattr(symbol_info, 'point', None) or 0.0
-                spread = None
-                spread_points = None
-                spread_ratio = None
-                if tick and point:
-                    spread = max(0.0, float(tick.ask - tick.bid))
-                    spread_points = spread / point if point else None
+            tick = mt5.symbol_info_tick(symbol)
+            point = getattr(symbol_info, 'point', None) or 0.0
+            spread = None
+            spread_points = None
+            spread_ratio = None
+            if tick and point:
+                spread = max(0.0, float(tick.ask - tick.bid))
+                spread_points = spread / point if point else None
 
-                # Check instrument-specific session priority
-                if not should_trade_instrument_in_session(symbol):
-                    session_priority = get_instrument_session_priority(symbol, session_name)
-                    print(f"📊 {symbol}: Skipping (session priority {session_priority}/{MIN_SESSION_PRIORITY} for {session_name})")
-                    cycle_stats['symbols_skipped_session'] += 1
-                    continue
+            # Check instrument-specific session priority
+            if not should_trade_instrument_in_session(symbol):
+                session_priority = get_instrument_session_priority(symbol, session_name)
+                print(f"📊 {symbol}: Skipping (session priority {session_priority}/{MIN_SESSION_PRIORITY} for {session_name})")
+                cycle_stats['symbols_skipped_session'] += 1
+                continue
+            else:
+                session_priority = get_instrument_session_priority(symbol, session_name)
+                print(f"📊 {symbol}: Trading allowed (session priority {session_priority}/{MIN_SESSION_PRIORITY} for {session_name})")
+
+            # Check for news blackout periods
+            is_blackout, news_reason = is_news_blackout_period(symbol)
+            if is_blackout:
+                print(f"📰 {symbol}: Skipping due to news blackout - {news_reason}")
+                cycle_stats['symbols_skipped_news'] += 1
+                continue
+
+            today = datetime.now()
+            from_date = today - timedelta(minutes=bars * 15)
+            rates = mt5.copy_rates_range(symbol, timeframe, from_date, today)
+            if rates is None:
+                print(f"No data for {symbol}")
+                cycle_stats['symbols_skipped_data'] += 1
+                continue
+            df = pd.DataFrame(rates)
+            df['time'] = pd.to_datetime(df['time'], unit='s')
+            # Compute ATR once per symbol for this cycle
+            atr_value = compute_atr(df, ATR_PERIOD)
+            if atr_value is not None:
+                print(f"{symbol} computed ATR({ATR_PERIOD}) = {atr_value:.6f}")
+            else:
+                print(f"{symbol} ATR could not be computed (insufficient data).")
+                cycle_stats['atr_missing'] += 1
+
+            atr_cache_by_period: dict[int, float | None] = {ATR_PERIOD: atr_value}
+            volatility_pressure = calculate_volatility_pressure(df)
+            candle_conviction = calculate_candle_conviction(df)
+            print(f"{symbol} Volatility pressure: {volatility_pressure:.2f} | Candle conviction: {candle_conviction:.2f}")
+
+            low_vol_guard = evaluate_low_volatility_guard(symbol, volatility_pressure)
+            low_vol_risk_scale = float(low_vol_guard.get("risk_scale", 1.0))
+            low_vol_conf_penalty = float(low_vol_guard.get("confidence_penalty", 0.0))
+
+            if spread is not None and point:
+                if atr_value and atr_value > 0:
+                    spread_ratio = spread / atr_value
+                    print(
+                        f"📉 {symbol} Spread snapshot -> {spread_points:.1f} pts ({spread:.6f}) | "
+                        f"Spread/ATR {spread_ratio:.2f}"
+                    )
                 else:
-                    session_priority = get_instrument_session_priority(symbol, session_name)
-                    print(f"📊 {symbol}: Trading allowed (session priority {session_priority}/{MIN_SESSION_PRIORITY} for {session_name})")
+                    print(f"📉 {symbol} Spread snapshot -> {spread_points:.1f} pts ({spread:.6f})")
+            else:
+                print(f"📉 {symbol} Spread snapshot unavailable (tick data missing)")
 
-                # Check for news blackout periods
-                is_blackout, news_reason = is_news_blackout_period(symbol)
-                if is_blackout:
-                    print(f"📰 {symbol}: Skipping due to news blackout - {news_reason}")
-                    cycle_stats['symbols_skipped_news'] += 1
-                    continue
-
-                today = datetime.now()
-                from_date = today - timedelta(minutes=bars * 15)
-                rates = mt5.copy_rates_range(symbol, timeframe, from_date, today)
-                if rates is None:
-                    print(f"No data for {symbol}")
-                    cycle_stats['symbols_skipped_data'] += 1
-                    continue
-                df = pd.DataFrame(rates)
-                df['time'] = pd.to_datetime(df['time'], unit='s')
-                # Compute ATR once per symbol for this cycle
-                atr_value = compute_atr(df, ATR_PERIOD)
-                if atr_value is not None:
-                    print(f"{symbol} computed ATR({ATR_PERIOD}) = {atr_value:.6f}")
-                else:
-                    print(f"{symbol} ATR could not be computed (insufficient data).")
-                    cycle_stats['atr_missing'] += 1
-
-                atr_cache_by_period: dict[int, float | None] = {ATR_PERIOD: atr_value}
-                volatility_pressure = calculate_volatility_pressure(df)
-                candle_conviction = calculate_candle_conviction(df)
-                print(f"{symbol} Volatility pressure: {volatility_pressure:.2f} | Candle conviction: {candle_conviction:.2f}")
-
-                low_vol_guard = evaluate_low_volatility_guard(symbol, volatility_pressure)
-                low_vol_risk_scale = float(low_vol_guard.get("risk_scale", 1.0))
-                low_vol_conf_penalty = float(low_vol_guard.get("confidence_penalty", 0.0))
-
-                if spread is not None and point:
-                    if atr_value and atr_value > 0:
-                        spread_ratio = spread / atr_value
-                        print(
-                            f"📉 {symbol} Spread snapshot -> {spread_points:.1f} pts ({spread:.6f}) | "
-                            f"Spread/ATR {spread_ratio:.2f}"
-                        )
-                    else:
-                        print(f"📉 {symbol} Spread snapshot -> {spread_points:.1f} pts ({spread:.6f})")
-                else:
-                    print(f"📉 {symbol} Spread snapshot unavailable (tick data missing)")
-
-                alpha_surge_active, alpha_risk_scale, alpha_confidence_relief, alpha_note = evaluate_alpha_surge(
-                    session_priority=session_priority,
-                    spread_ratio=spread_ratio,
-                    volatility_pressure=volatility_pressure,
-                    candle_conviction=candle_conviction,
+            alpha_surge_active, alpha_risk_scale, alpha_confidence_relief, alpha_note = evaluate_alpha_surge(
+                session_priority=session_priority,
+                spread_ratio=spread_ratio,
+                volatility_pressure=volatility_pressure,
+                candle_conviction=candle_conviction,
+            )
+            if alpha_surge_active:
+                cycle_stats['alpha_surge_active'] += 1
+                print(
+                    f"⚡ {symbol}: Alpha surge detected ({alpha_note}) | risk x{alpha_risk_scale:.2f}, confidence relief {alpha_confidence_relief:.2f}"
                 )
-                if alpha_surge_active:
-                    cycle_stats['alpha_surge_active'] += 1
-                    print(
-                        f"⚡ {symbol}: Alpha surge detected ({alpha_note}) | risk x{alpha_risk_scale:.2f}, confidence relief {alpha_confidence_relief:.2f}"
-                    )
 
-                # Detect market regime for strategy optimization
-                current_regime = detect_market_regime(df)
-                print(f"📊 {symbol} Market Regime: {current_regime}")
-                
-                # Advanced stop management for existing positions
-                if atr_value:
-                    stop_stats = manage_position_stops(symbol, atr_value)
-                    if stop_stats:
-                        for key, value in stop_stats.items():
-                            cycle_stats[key] += value
-                
-                positions = mt5.positions_get(symbol=symbol) or []
-                if positions:
-                    symbol_snapshots = [build_position_snapshot(p, now_utc) for p in positions]
-                    detail_lines = [compose_position_line(snap, verbose=False) for snap in symbol_snapshots]
-                    if len(detail_lines) == 1:
-                        print(f"📈 {symbol} Open position -> {detail_lines[0]}")
-                    else:
-                        print(f"📈 {symbol} Open positions ({len(detail_lines)}):")
-                        for detail in detail_lines:
-                            print(f"    • {detail}")
-                    cycle_stats['symbols_with_open_positions'] += 1
+            # Detect market regime for strategy optimization
+            current_regime = detect_market_regime(df)
+            print(f"📊 {symbol} Market Regime: {current_regime}")
+            
+            # Advanced stop management for existing positions
+            if atr_value:
+                stop_stats = manage_position_stops(symbol, atr_value)
+                if stop_stats:
+                    for key, value in stop_stats.items():
+                        cycle_stats[key] += value
+            
+            positions = mt5.positions_get(symbol=symbol) or []
+            if positions:
+                symbol_snapshots = [build_position_snapshot(p, now_utc) for p in positions]
+                detail_lines = [compose_position_line(snap, verbose=False) for snap in symbol_snapshots]
+                if len(detail_lines) == 1:
+                    print(f"📈 {symbol} Open position -> {detail_lines[0]}")
                 else:
-                    print(f"📈 {symbol}: no open positions")
+                    print(f"📈 {symbol} Open positions ({len(detail_lines)}):")
+                    for detail in detail_lines:
+                        print(f"    • {detail}")
+                cycle_stats['symbols_with_open_positions'] += 1
+            else:
+                print(f"📈 {symbol}: no open positions")
 
-                guard_skip_entries = bool(low_vol_guard.get("skip")) and not positions
-                if guard_skip_entries:
-                    streak = int(low_vol_guard.get("streak", 0.0))
+            guard_skip_entries = bool(low_vol_guard.get("skip")) and not positions
+            if guard_skip_entries:
+                streak = int(low_vol_guard.get("streak", 0.0))
+                print(
+                    f"🌙 {symbol}: Low-vol guard active (streak {streak}, pressure {volatility_pressure:.2f} < {LOW_VOL_SKIP_THRESHOLD:.2f}); skipping new entries."
+                )
+                cycle_stats['symbols_skipped_low_vol'] += 1
+                continue
+            elif low_vol_guard.get("skip"):
+                streak = int(low_vol_guard.get("streak", 0.0))
+                print(
+                    f"🌙 {symbol}: Low-vol guard flagged conditions (streak {streak}); continuing due to open exposure."
+                )
+
+            have_buy = any(p.type == mt5.POSITION_TYPE_BUY for p in positions)
+            have_sell = any(p.type == mt5.POSITION_TYPE_SELL for p in positions)
+
+            all_candidates = []
+
+            for agent_info in agent_dict[symbol]:
+                allowed_modes = agent_info.get('modes')
+                if allowed_modes and current_risk_mode not in allowed_modes:
                     print(
-                        f"🌙 {symbol}: Low-vol guard active (streak {streak}, pressure {volatility_pressure:.2f} < {LOW_VOL_SKIP_THRESHOLD:.2f}); skipping new entries."
+                        f"🚫 {symbol} {agent_info['label']}: Disabled outside risk mode {', '.join(m.upper() for m in allowed_modes)} (current {current_risk_mode.upper() or 'UNKNOWN'})."
                     )
-                    cycle_stats['symbols_skipped_low_vol'] += 1
+                    cycle_stats['strategies_disabled_mode'] += 1
                     continue
-                elif low_vol_guard.get("skip"):
-                    streak = int(low_vol_guard.get("streak", 0.0))
+                allowed_personas = agent_info.get('personas')
+                if allowed_personas:
+                    active_persona = ACTIVE_PERSONA_KEY or _normalize_persona_key(risk_profile_state.get("persona"))
+                    if active_persona not in allowed_personas:
+                        persona_display = risk_profile_state.get("persona_label") or (active_persona.upper() if active_persona else "NONE")
+                        allowed_display = ", ".join(p.upper() for p in allowed_personas)
+                        print(
+                            f"🚫 {symbol} {agent_info['label']}: Persona {persona_display} locked out (allowed: {allowed_display})."
+                        )
+                        cycle_stats['strategies_disabled_persona'] += 1
+                        continue
+                agent = agent_info['agent']
+                strategy_name = agent_info.get('label') or type(agent).__name__.replace('Agent', '').replace('_', ' ').strip() or 'Strategy'
+                strategy_key = strategy_name.lower().replace(' ', '_')
+
+                # Check if strategy should be active in current regime
+                if not should_trade_strategy_in_regime(strategy_key, current_regime):
+                    regime_weight = get_regime_strategy_weight(strategy_key, current_regime)
+                    print(f"🚫 {symbol} {strategy_name}: Disabled in {current_regime} regime (weight: {regime_weight:.1%})")
+                    cycle_stats['strategies_disabled_regime'] += 1
+                    continue
+
+                sl_mult = agent_info.get('sl_mult', SL_ATR_MULTIPLIER)
+                tp_mult = agent_info.get('tp_mult', TP_ATR_MULTIPLIER)
+                priority = agent_info.get('priority', 999)
+                atr_period_override = agent_info.get('atr_period', ATR_PERIOD)
+                strategy_atr_value = atr_cache_by_period.get(atr_period_override)
+                if strategy_atr_value is None:
+                    strategy_atr_value = compute_atr(df, atr_period_override)
+                    atr_cache_by_period[atr_period_override] = strategy_atr_value
+                if strategy_atr_value is None:
+                    print(f"🚫 {symbol} {strategy_name}: Insufficient data for ATR({atr_period_override})")
+                    cycle_stats['strategies_skipped_atr'] += 1
+                    continue
+
+                # Adjust priority based on regime and performance (lower number = higher priority)
+                regime_weight = get_regime_strategy_weight(strategy_key, current_regime)
+                performance_weight = get_strategy_performance_weight(strategy_key, symbol)
+                combined_weight = regime_weight * performance_weight
+                regime_adjusted_priority = priority / combined_weight  # Higher weight = better priority
+                base_risk_multiplier = calculate_risk_multiplier(session_priority, regime_weight, performance_weight)
+                liquidity_adjusted_multiplier = base_risk_multiplier
+
+                liquidity_blocked, liquidity_scale, liquidity_note = evaluate_liquidity_scale(spread_ratio)
+                if liquidity_blocked:
                     print(
-                        f"🌙 {symbol}: Low-vol guard flagged conditions (streak {streak}); continuing due to open exposure."
+                        f"💧 {symbol} {strategy_name}: Liquidity block -> {liquidity_note}"
+                    )
+                    cycle_stats['liquidity_skipped'] += 1
+                    continue
+                if liquidity_scale != 1.0:
+                    liquidity_adjusted_multiplier = max(
+                        RISK_MULTIPLIER_MIN,
+                        min(
+                            RISK_MULTIPLIER_MAX,
+                            round(base_risk_multiplier * liquidity_scale, 2),
+                        ),
+                    )
+                    scale_type = 'boosted' if liquidity_scale > 1.0 else 'scaled'
+                    counter_key = 'liquidity_boosted' if liquidity_scale > 1.0 else 'liquidity_scaled'
+                    cycle_stats[counter_key] += 1
+                    print(
+                        f"💧 {symbol} {strategy_name}: Liquidity {scale_type} -> {liquidity_note} | risk x{base_risk_multiplier:.2f} → x{liquidity_adjusted_multiplier:.2f}"
                     )
 
-                have_buy = any(p.type == mt5.POSITION_TYPE_BUY for p in positions)
-                have_sell = any(p.type == mt5.POSITION_TYPE_SELL for p in positions)
-
-                all_candidates = []
-
-                for agent_info in agent_dict[symbol]:
-                    agent = agent_info['agent']
-                    strategy_name = agent_info.get('label') or type(agent).__name__.replace('Agent', '').replace('_', ' ').strip() or 'Strategy'
-                    strategy_key = strategy_name.lower().replace(' ', '_')
-                    
-                    # Check if strategy should be active in current regime
-                    if not should_trade_strategy_in_regime(strategy_key, current_regime):
-                        regime_weight = get_regime_strategy_weight(strategy_key, current_regime)
-                        print(f"🚫 {symbol} {strategy_name}: Disabled in {current_regime} regime (weight: {regime_weight:.1%})")
-                        cycle_stats['strategies_disabled_regime'] += 1
-                        continue
-                    
-                    sl_mult = agent_info.get('sl_mult', SL_ATR_MULTIPLIER)
-                    tp_mult = agent_info.get('tp_mult', TP_ATR_MULTIPLIER)
-                    priority = agent_info.get('priority', 999)
-                    atr_period_override = agent_info.get('atr_period', ATR_PERIOD)
-                    strategy_atr_value = atr_cache_by_period.get(atr_period_override)
-                    if strategy_atr_value is None:
-                        strategy_atr_value = compute_atr(df, atr_period_override)
-                        atr_cache_by_period[atr_period_override] = strategy_atr_value
-                    if strategy_atr_value is None:
-                        print(f"🚫 {symbol} {strategy_name}: Insufficient data for ATR({atr_period_override})")
-                        cycle_stats['strategies_skipped_atr'] += 1
-                        continue
-                    
-                    # Adjust priority based on regime and performance (lower number = higher priority)
-                    regime_weight = get_regime_strategy_weight(strategy_key, current_regime)
-                    performance_weight = get_strategy_performance_weight(strategy_key, symbol)
-                    combined_weight = regime_weight * performance_weight
-                    regime_adjusted_priority = priority / combined_weight  # Higher weight = better priority
-                    base_risk_multiplier = calculate_risk_multiplier(session_priority, regime_weight, performance_weight)
-                    liquidity_adjusted_multiplier = base_risk_multiplier
-
-                    liquidity_blocked, liquidity_scale, liquidity_note = evaluate_liquidity_scale(spread_ratio)
-                    if liquidity_blocked:
-                        print(
-                            f"💧 {symbol} {strategy_name}: Liquidity block -> {liquidity_note}"
-                        )
-                        cycle_stats['liquidity_skipped'] += 1
-                        continue
-                    if liquidity_scale != 1.0:
-                        liquidity_adjusted_multiplier = max(
+                alpha_adjusted_multiplier = liquidity_adjusted_multiplier
+                alpha_conf_threshold = CONFIDENCE_EXECUTION_THRESHOLD
+                if alpha_surge_active:
+                    alpha_adjusted_multiplier = min(
+                        RISK_MULTIPLIER_MAX,
+                        max(
                             RISK_MULTIPLIER_MIN,
-                            min(
-                                RISK_MULTIPLIER_MAX,
-                                round(base_risk_multiplier * liquidity_scale, 2),
-                            ),
-                        )
-                        scale_type = 'boosted' if liquidity_scale > 1.0 else 'scaled'
-                        counter_key = 'liquidity_boosted' if liquidity_scale > 1.0 else 'liquidity_scaled'
-                        cycle_stats[counter_key] += 1
+                            round(liquidity_adjusted_multiplier * alpha_risk_scale, 2),
+                        ),
+                    )
+                    alpha_conf_threshold = max(
+                        ALPHA_SURGE_MIN_THRESHOLD,
+                        CONFIDENCE_EXECUTION_THRESHOLD - alpha_confidence_relief,
+                    )
+                    cycle_stats['alpha_surge_scaled'] += 1
+                    if alpha_adjusted_multiplier != liquidity_adjusted_multiplier:
                         print(
-                            f"💧 {symbol} {strategy_name}: Liquidity {scale_type} -> {liquidity_note} | risk x{base_risk_multiplier:.2f} → x{liquidity_adjusted_multiplier:.2f}"
+                            f"⚡ {symbol} {strategy_name}: Alpha surge scaling risk x{liquidity_adjusted_multiplier:.2f} → x{alpha_adjusted_multiplier:.2f} | threshold {CONFIDENCE_EXECUTION_THRESHOLD:.2f} → {alpha_conf_threshold:.2f}"
                         )
 
-                    alpha_adjusted_multiplier = liquidity_adjusted_multiplier
-                    alpha_conf_threshold = CONFIDENCE_EXECUTION_THRESHOLD
-                    if alpha_surge_active:
-                        alpha_adjusted_multiplier = min(
+                guard_adjusted_multiplier = alpha_adjusted_multiplier
+                guard_conf_threshold = alpha_conf_threshold + low_vol_conf_penalty
+                if low_vol_risk_scale < 0.999:
+                    scaled_multiplier = max(
+                        RISK_MULTIPLIER_MIN,
+                        min(
                             RISK_MULTIPLIER_MAX,
-                            max(
-                                RISK_MULTIPLIER_MIN,
-                                round(liquidity_adjusted_multiplier * alpha_risk_scale, 2),
-                            ),
-                        )
-                        alpha_conf_threshold = max(
-                            ALPHA_SURGE_MIN_THRESHOLD,
-                            CONFIDENCE_EXECUTION_THRESHOLD - alpha_confidence_relief,
-                        )
-                        cycle_stats['alpha_surge_scaled'] += 1
-                        if alpha_adjusted_multiplier != liquidity_adjusted_multiplier:
-                            print(
-                                f"⚡ {symbol} {strategy_name}: Alpha surge scaling risk x{liquidity_adjusted_multiplier:.2f} → x{alpha_adjusted_multiplier:.2f} | threshold {CONFIDENCE_EXECUTION_THRESHOLD:.2f} → {alpha_conf_threshold:.2f}"
-                            )
-                    
-                    guard_adjusted_multiplier = alpha_adjusted_multiplier
-                    guard_conf_threshold = alpha_conf_threshold + low_vol_conf_penalty
-                    if low_vol_risk_scale < 0.999:
-                        scaled_multiplier = max(
-                            RISK_MULTIPLIER_MIN,
-                            min(
-                                RISK_MULTIPLIER_MAX,
-                                round(guard_adjusted_multiplier * low_vol_risk_scale, 2),
-                            ),
-                        )
-                        if scaled_multiplier != guard_adjusted_multiplier:
-                            cycle_stats['low_vol_scaled'] += 1
-                            print(
-                                f"🌙 {symbol} {strategy_name}: Low-vol throttling risk x{guard_adjusted_multiplier:.2f} → x{scaled_multiplier:.2f}"
-                            )
-                            guard_adjusted_multiplier = scaled_multiplier
-
-                    if low_vol_conf_penalty > 0:
-                        cycle_stats['low_vol_conf_penalty'] += 1
-
-                    signal = agent.get_signal(df)
-                    if signal not in ('buy', 'sell'):
-                        cycle_stats['strategies_no_signal'] += 1
+                            round(guard_adjusted_multiplier * low_vol_risk_scale, 2),
+                        ),
+                    )
+                    if scaled_multiplier != guard_adjusted_multiplier:
+                        cycle_stats['low_vol_scaled'] += 1
                         print(
-                            f"ℹ️ {symbol} {strategy_name}: No actionable signal (raw={signal}) | "
-                            f"regime weight {regime_weight:.1%} | performance {performance_weight:.2f}× | adj priority {regime_adjusted_priority:.1f}"
+                            f"🌙 {symbol} {strategy_name}: Low-vol throttling risk x{guard_adjusted_multiplier:.2f} → x{scaled_multiplier:.2f}"
                         )
-                        continue
-                    
-                    micro_momentum_score = None
-                    micro_momentum_threshold = None
-                    micro_soft_pass = False
-                    micro_override = False
-                    
-                    # Multi-timeframe confirmation
-                    if signal in ('buy', 'sell'):
-                        mtf_confirmed = confirm_signal_with_mtf(signal, symbol)
-                        mtf_bias = get_mtf_trend_bias(symbol)
-                        if not mtf_confirmed:
-                            if strategy_key == 'mean_reversion' and current_regime == 'RANGING':
-                                print(f"🌀 {symbol} {strategy_name}: Overriding MTF bias ({mtf_bias}) in ranging regime for mean reversion signal {signal}.")
-                            else:
-                                print(f"🔍 {symbol} {strategy_name}: Signal {signal} rejected by MTF filter (H1 bias: {mtf_bias})")
-                                continue  # Skip this signal
-                        else:
-                            print(f"✅ {symbol} {strategy_name}: Signal {signal} confirmed by MTF (H1 bias: {mtf_bias})")
+                        guard_adjusted_multiplier = scaled_multiplier
 
-                        reference_price = float(df['close'].iloc[-1]) if not df['close'].empty else None
-                        micro_pass, micro_score, micro_threshold, micro_soft, micro_override = confirm_with_micro_momentum(
-                            symbol,
-                            signal,
-                            current_regime,
-                            strategy_atr_value,
-                            reference_price,
-                            positions,
-                            guard_factor=combined_guard_factor,
-                        )
-                        if not micro_pass:
-                            if strategy_key == 'mean_reversion' and current_regime == 'RANGING':
-                                required_threshold = micro_threshold if signal == 'buy' else -micro_threshold
-                                print(
-                                    f"🎯 {symbol} {strategy_name}: Micro momentum counter-trend ({micro_score:+.2%} vs required {required_threshold:.2%}); allowing fade entry in range."
-                                )
-                                micro_momentum_score = None
-                                micro_momentum_threshold = None
-                                micro_soft_pass = True
-                                cycle_stats['micro_overrides'] += 1
-                            else:
-                                required_threshold = micro_threshold if signal == 'buy' else -micro_threshold
-                                comparator = "≥" if signal == 'buy' else "≤"
-                                print(
-                                    f"🎯 {symbol} {strategy_name}: Signal {signal} rejected by micro momentum ({micro_score:+.2%} vs required {comparator} {required_threshold:.2%})"
-                                )
-                                cycle_stats['signals_filtered_micro'] += 1
-                                continue
+                if low_vol_conf_penalty > 0:
+                    cycle_stats['low_vol_conf_penalty'] += 1
+
+                signal = agent.get_signal(df)
+                if signal not in ('buy', 'sell'):
+                    cycle_stats['strategies_no_signal'] += 1
+                    print(
+                        f"ℹ️ {symbol} {strategy_name}: No actionable signal (raw={signal}) | "
+                        f"regime weight {regime_weight:.1%} | performance {performance_weight:.2f}× | adj priority {regime_adjusted_priority:.1f}"
+                    )
+                    continue
+
+                micro_momentum_score = None
+                micro_momentum_threshold = None
+                micro_soft_pass = False
+                micro_override = False
+
+                # Multi-timeframe confirmation
+                if signal in ('buy', 'sell'):
+                    mtf_confirmed = confirm_signal_with_mtf(signal, symbol)
+                    mtf_bias = get_mtf_trend_bias(symbol)
+                    if not mtf_confirmed:
+                        if strategy_key == 'mean_reversion' and current_regime == 'RANGING':
+                            print(f"🌀 {symbol} {strategy_name}: Overriding MTF bias ({mtf_bias}) in ranging regime for mean reversion signal {signal}.")
                         else:
-                            micro_momentum_score = micro_score
-                            micro_momentum_threshold = micro_threshold
-                            micro_soft_pass = micro_soft
-                            threshold_display = micro_momentum_threshold
-                            comparator = "≥"
-                            if signal == 'sell':
-                                comparator = "≤"
-                                threshold_display = -micro_momentum_threshold
-                            qualifiers = []
-                            if micro_soft:
-                                qualifiers.append("soft confirm")
-                            if micro_override:
-                                qualifiers.append("override")
-                            qualifier_text = f" ({', '.join(qualifiers)})" if qualifiers else ""
+                            print(f"🔍 {symbol} {strategy_name}: Signal {signal} rejected by MTF filter (H1 bias: {mtf_bias})")
+                            continue  # Skip this signal
+                    else:
+                        print(f"✅ {symbol} {strategy_name}: Signal {signal} confirmed by MTF (H1 bias: {mtf_bias})")
+
+                    reference_price = float(df['close'].iloc[-1]) if not df['close'].empty else None
+                    micro_pass, micro_score, micro_threshold, micro_soft, micro_override = confirm_with_micro_momentum(
+                        symbol,
+                        signal,
+                        current_regime,
+                        strategy_atr_value,
+                        reference_price,
+                        positions,
+                        guard_factor=combined_guard_factor,
+                    )
+                    if not micro_pass:
+                        if strategy_key == 'mean_reversion' and current_regime == 'RANGING':
+                            required_threshold = micro_threshold if signal == 'buy' else -micro_threshold
                             print(
-                                f"🎯 {symbol} {strategy_name}: Micro momentum aligned {micro_score:+.2%} {comparator} {threshold_display:.2%}{qualifier_text}"
+                                f"🎯 {symbol} {strategy_name}: Micro momentum counter-trend ({micro_score:+.2%} vs required {required_threshold:.2%}); allowing fade entry in range."
                             )
-                            if micro_override:
-                                cycle_stats['micro_overrides'] += 1
-                            cycle_stats['micro_confirms'] += 1
-                    
-                    if micro_momentum_score is not None:
+                            micro_momentum_score = None
+                            micro_momentum_threshold = None
+                            micro_soft_pass = True
+                            cycle_stats['micro_overrides'] += 1
+                        else:
+                            required_threshold = micro_threshold if signal == 'buy' else -micro_threshold
+                            comparator = "≥" if signal == 'buy' else "≤"
+                            print(
+                                f"🎯 {symbol} {strategy_name}: Signal {signal} rejected by micro momentum ({micro_score:+.2%} vs required {comparator} {required_threshold:.2%})"
+                            )
+                            cycle_stats['signals_filtered_micro'] += 1
+                            continue
+                    else:
+                        micro_momentum_score = micro_score
+                        micro_momentum_threshold = micro_threshold
+                        micro_soft_pass = micro_soft
+                        threshold_display = micro_momentum_threshold
+                        comparator = "≥"
+                        if signal == 'sell':
+                            comparator = "≤"
+                            threshold_display = -micro_momentum_threshold
                         qualifiers = []
-                        if micro_soft_pass:
-                            qualifiers.append("soft")
+                        if micro_soft:
+                            qualifiers.append("soft confirm")
                         if micro_override:
                             qualifiers.append("override")
-                        qualifier_suffix = f" ({'/'.join(qualifiers)})" if qualifiers else ""
-                        threshold_display = micro_momentum_threshold
-                        if signal == 'sell':
-                            threshold_display = -micro_momentum_threshold
-                        micro_text = (
-                            f", micro {micro_momentum_score:+.2%}/{threshold_display:.2%}{qualifier_suffix}"
+                        qualifier_text = f" ({', '.join(qualifiers)})" if qualifiers else ""
+                        print(
+                            f"🎯 {symbol} {strategy_name}: Micro momentum aligned {micro_score:+.2%} {comparator} {threshold_display:.2%}{qualifier_text}"
+                        )
+                        if micro_override:
+                            cycle_stats['micro_overrides'] += 1
+                        cycle_stats['micro_confirms'] += 1
+
+                if micro_momentum_score is not None:
+                    qualifiers = []
+                    if micro_soft_pass:
+                        qualifiers.append("soft")
+                    if micro_override:
+                        qualifiers.append("override")
+                    qualifier_suffix = f" ({'/'.join(qualifiers)})" if qualifiers else ""
+                    threshold_display = micro_momentum_threshold
+                    if signal == 'sell':
+                        threshold_display = -micro_momentum_threshold
+                    micro_text = (
+                        f", micro {micro_momentum_score:+.2%}/{threshold_display:.2%}{qualifier_suffix}"
+                    )
+                else:
+                    micro_text = ""
+                confidence = calculate_signal_confidence(
+                    session_priority,
+                    regime_weight,
+                    performance_weight,
+                    combined_guard_factor,
+                    signal,
+                    micro_momentum_score,
+                    micro_momentum_threshold,
+                    micro_soft_pass,
+                    volatility_pressure,
+                    candle_conviction,
+                )
+
+                ml_multiplier = None
+                ml_probability = None
+                ml_context: dict[str, float] = {}
+                if signal in ("buy", "sell"):
+                    ml_multiplier, ml_context = compute_ml_confidence_multiplier(
+                        symbol,
+                        strategy_key,
+                        signal,
+                        atr_value=strategy_atr_value,
+                        sl_mult=sl_mult,
+                        tp_mult=tp_mult,
+                        risk_multiplier=guard_adjusted_multiplier,
+                        guard_factor=combined_guard_factor,
+                        account_info=account_info,
+                        symbol_info=symbol_info,
+                        timestamp=now_utc,
+                    )
+                    if ml_multiplier is not None:
+                        pre_confidence = confidence
+                        confidence = max(0.0, confidence * ml_multiplier)
+                        confidence = min(confidence, float(ML_CONFIDENCE_MAX_CONFIDENCE))
+                        ml_probability = ml_context.get("probability")
+                        ml_context["confidence_before"] = pre_confidence
+                        ml_context["confidence_after"] = confidence
+
+                        if ml_multiplier > 1.0 + 1e-6:
+                            cycle_stats['ml_confidence_boosts'] += 1
+                        elif ml_multiplier < 1.0 - 1e-6:
+                            cycle_stats['ml_confidence_cuts'] += 1
+                        else:
+                            cycle_stats['ml_confidence_neutral'] += 1
+
+                        if ML_CONFIDENCE_VERBOSE and ml_probability is not None:
+                            print(
+                                f"🤖 {symbol} {strategy_name}: ML p={ml_probability:.2%} → confidence x{ml_multiplier:.2f} "
+                                f"({pre_confidence:.2f}→{confidence:.2f})"
+                            )
+
+                        telemetry.emit(
+                            "ml_confidence_eval",
+                            scan=scan_counter,
+                            symbol=symbol,
+                            strategy=strategy_key,
+                            direction=signal,
+                            probability=round(ml_probability, 6) if ml_probability is not None else None,
+                            multiplier=round(ml_multiplier, 4),
+                            confidence_before=round(pre_confidence, 4),
+                            confidence_after=round(confidence, 4),
+                            guard_factor=round(combined_guard_factor, 4),
                         )
                     else:
-                        micro_text = ""
-                    confidence = calculate_signal_confidence(
-                        session_priority,
-                        regime_weight,
-                        performance_weight,
-                        combined_guard_factor,
-                        signal,
-                        micro_momentum_score,
-                        micro_momentum_threshold,
-                        micro_soft_pass,
-                        volatility_pressure,
-                        candle_conviction,
+                        reason = ml_context.get("reason") if ml_context else ""
+                        if reason == "model-unavailable":
+                            cycle_stats['ml_confidence_unavailable'] += 1
+                        else:
+                            cycle_stats['ml_confidence_skipped'] += 1
+
+                adjusted_risk_multiplier = adjust_risk_with_confidence(guard_adjusted_multiplier, confidence)
+                risk_multiplier = apply_risk_guard_to_multiplier(adjusted_risk_multiplier)
+
+                dynamic_conf_threshold = guard_conf_threshold
+                confidence_relief = 0.0
+                if micro_soft_pass:
+                    confidence_relief = max(confidence_relief, float(CONFIDENCE_SOFT_PASS_RELIEF))
+                if micro_override:
+                    confidence_relief = max(confidence_relief, float(CONFIDENCE_OVERRIDE_RELIEF))
+                if signal == 'buy' and have_buy:
+                    confidence_relief = max(confidence_relief, float(CONFIDENCE_EXISTING_POSITION_RELIEF))
+                if signal == 'sell' and have_sell:
+                    confidence_relief = max(confidence_relief, float(CONFIDENCE_EXISTING_POSITION_RELIEF))
+                if confidence_relief > 0.0:
+                    dynamic_conf_threshold = max(
+                        float(CONFIDENCE_THRESHOLD_FLOOR),
+                        dynamic_conf_threshold - confidence_relief,
                     )
 
-                    adjusted_risk_multiplier = adjust_risk_with_confidence(guard_adjusted_multiplier, confidence)
-                    risk_multiplier = apply_risk_guard_to_multiplier(adjusted_risk_multiplier)
-
-                    dynamic_conf_threshold = guard_conf_threshold
-                    confidence_relief = 0.0
-                    if micro_soft_pass:
-                        confidence_relief = max(confidence_relief, float(CONFIDENCE_SOFT_PASS_RELIEF))
-                    if micro_override:
-                        confidence_relief = max(confidence_relief, float(CONFIDENCE_OVERRIDE_RELIEF))
-                    if signal == 'buy' and have_buy:
-                        confidence_relief = max(confidence_relief, float(CONFIDENCE_EXISTING_POSITION_RELIEF))
-                    if signal == 'sell' and have_sell:
-                        confidence_relief = max(confidence_relief, float(CONFIDENCE_EXISTING_POSITION_RELIEF))
-                    if confidence_relief > 0.0:
-                        dynamic_conf_threshold = max(
-                            float(CONFIDENCE_THRESHOLD_FLOOR),
-                            dynamic_conf_threshold - confidence_relief,
-                        )
-
-                    if signal in ('buy', 'sell') and confidence < dynamic_conf_threshold:
-                        print(
-                            f"⚖️ {symbol} {strategy_name}: Confidence {confidence:.2f} below threshold {dynamic_conf_threshold:.2f}; skipping signal {signal}."
-                        )
-                        cycle_stats['signals_filtered_confidence'] += 1
-                        signal = None
-
+                if signal in ('buy', 'sell') and confidence < dynamic_conf_threshold:
                     print(
-                        f"{symbol} {strategy_name} Final Signal: {signal} (regime: {regime_weight:.1%}, performance: {performance_weight:.2f}×, adj priority: {regime_adjusted_priority:.1f}, confidence {confidence:.2f}/{dynamic_conf_threshold:.2f}, risk base x{base_risk_multiplier:.2f} → liquidity x{liquidity_adjusted_multiplier:.2f} → alpha x{alpha_adjusted_multiplier:.2f} → low-vol x{guard_adjusted_multiplier:.2f} → guard x{risk_multiplier:.2f}, ATR({atr_period_override})={strategy_atr_value:.6f}{micro_text})"
+                        f"⚖️ {symbol} {strategy_name}: Confidence {confidence:.2f} below threshold {dynamic_conf_threshold:.2f}; skipping signal {signal}."
                     )
+                    cycle_stats['signals_filtered_confidence'] += 1
+                    signal = None
 
-                    if signal in ('buy', 'sell'):
-                        cycle_stats['candidates_total'] += 1
-                        all_candidates.append({
-                            'signal': signal,
-                            'label': strategy_name,
-                            'priority': regime_adjusted_priority,  # Use regime-adjusted priority
-                            'sl_mult': sl_mult,
-                            'tp_mult': tp_mult,
-                            'regime_weight': regime_weight,
-                            'base_risk_multiplier': base_risk_multiplier,
-                            'liquidity_risk_multiplier': liquidity_adjusted_multiplier,
-                            'alpha_risk_multiplier': alpha_adjusted_multiplier,
-                            'low_vol_risk_multiplier': guard_adjusted_multiplier,
-                            'risk_multiplier': risk_multiplier,
-                            'guard_factor': combined_guard_factor,
-                            'micro_momentum': micro_momentum_score,
-                            'micro_threshold': micro_momentum_threshold,
-                            'micro_soft_pass': micro_soft_pass,
-                            'atr_value': strategy_atr_value,
-                            'atr_period': atr_period_override,
-                            'confidence': confidence,
-                            'liquidity_scale': liquidity_scale,
-                            'alpha_surge': alpha_surge_active,
-                            'alpha_threshold': dynamic_conf_threshold,
-                        })
+                print(
+                    f"{symbol} {strategy_name} Final Signal: {signal} (regime: {regime_weight:.1%}, performance: {performance_weight:.2f}×, adj priority: {regime_adjusted_priority:.1f}, confidence {confidence:.2f}/{dynamic_conf_threshold:.2f}, risk base x{base_risk_multiplier:.2f} → liquidity x{liquidity_adjusted_multiplier:.2f} → alpha x{alpha_adjusted_multiplier:.2f} → low-vol x{guard_adjusted_multiplier:.2f} → guard x{risk_multiplier:.2f}, ATR({atr_period_override})={strategy_atr_value:.6f}{micro_text})"
+                )
 
-                if all_candidates:
+                if signal in ('buy', 'sell'):
+                    cycle_stats['candidates_total'] += 1
+                    all_candidates.append({
+                        'signal': signal,
+                        'label': strategy_name,
+                        'priority': regime_adjusted_priority,  # Use regime-adjusted priority
+                        'sl_mult': sl_mult,
+                        'tp_mult': tp_mult,
+                        'regime_weight': regime_weight,
+                        'base_risk_multiplier': base_risk_multiplier,
+                        'liquidity_risk_multiplier': liquidity_adjusted_multiplier,
+                        'alpha_risk_multiplier': alpha_adjusted_multiplier,
+                        'low_vol_risk_multiplier': guard_adjusted_multiplier,
+                        'risk_multiplier': risk_multiplier,
+                        'guard_factor': combined_guard_factor,
+                        'micro_momentum': micro_momentum_score,
+                        'micro_threshold': micro_momentum_threshold,
+                        'micro_soft_pass': micro_soft_pass,
+                        'atr_value': strategy_atr_value,
+                        'atr_period': atr_period_override,
+                        'confidence': confidence,
+                        'ml_probability': ml_probability,
+                        'ml_multiplier': ml_multiplier if ml_multiplier is not None else 1.0,
+                        'ml_context': dict(ml_context),
+                        'ml_applied': ml_multiplier is not None,
+                        'liquidity_scale': liquidity_scale,
+                        'alpha_surge': alpha_surge_active,
+                        'alpha_threshold': dynamic_conf_threshold,
+                    })
+
+            if all_candidates:
                     if not guard_trading_allowed:
                         cycle_stats['symbols_blocked_guard'] += 1
                         cycle_stats['signals_skipped_guard'] += len(all_candidates)
@@ -7126,6 +9192,13 @@ try:
                                     "guard_factor": combined_guard_factor,
                                     "drawdown": context_drawdown,
                                 }
+                                if best_candidate.get('ml_applied'):
+                                    ml_prob = best_candidate.get('ml_probability')
+                                    if ml_prob is not None:
+                                        correlation_context["ml_probability"] = ml_prob
+                                    ml_mult = best_candidate.get('ml_multiplier')
+                                    if ml_mult is not None:
+                                        correlation_context["ml_multiplier"] = ml_mult
                                 print(
                                     f"{symbol}: pyramiding BUY via {best_candidate['label']} (priority {best_candidate['priority']}, confidence {best_candidate['confidence']:.2f}) | {rationale} | comment {order_comment}"
                                 )
@@ -7172,6 +9245,13 @@ try:
                                 "guard_factor": combined_guard_factor,
                                 "drawdown": context_drawdown,
                             }
+                            if best_candidate.get('ml_applied'):
+                                ml_prob = best_candidate.get('ml_probability')
+                                if ml_prob is not None:
+                                    correlation_context["ml_probability"] = ml_prob
+                                ml_mult = best_candidate.get('ml_multiplier')
+                                if ml_mult is not None:
+                                    correlation_context["ml_multiplier"] = ml_mult
                             print(f"{symbol}: executing BUY via {best_candidate['label']} (priority {best_candidate['priority']}, confidence {best_candidate['confidence']:.2f}) | comment {order_comment}")
                             outcome = send_order(
                                 symbol,
@@ -7259,6 +9339,13 @@ try:
                                     "guard_factor": combined_guard_factor,
                                     "drawdown": context_drawdown,
                                 }
+                                if best_candidate.get('ml_applied'):
+                                    ml_prob = best_candidate.get('ml_probability')
+                                    if ml_prob is not None:
+                                        correlation_context["ml_probability"] = ml_prob
+                                    ml_mult = best_candidate.get('ml_multiplier')
+                                    if ml_mult is not None:
+                                        correlation_context["ml_multiplier"] = ml_mult
                                 print(
                                     f"{symbol}: pyramiding SELL via {best_candidate['label']} (priority {best_candidate['priority']}, confidence {best_candidate['confidence']:.2f}) | {rationale} | comment {order_comment}"
                                 )
@@ -7305,6 +9392,13 @@ try:
                                 "guard_factor": combined_guard_factor,
                                 "drawdown": context_drawdown,
                             }
+                            if best_candidate.get('ml_applied'):
+                                ml_prob = best_candidate.get('ml_probability')
+                                if ml_prob is not None:
+                                    correlation_context["ml_probability"] = ml_prob
+                                ml_mult = best_candidate.get('ml_multiplier')
+                                if ml_mult is not None:
+                                    correlation_context["ml_multiplier"] = ml_mult
                             print(f"{symbol}: executing SELL via {best_candidate['label']} (priority {best_candidate['priority']}, confidence {best_candidate['confidence']:.2f}) | comment {order_comment}")
                             outcome = send_order(
                                 symbol,
@@ -7360,5 +9454,6 @@ try:
 
 except KeyboardInterrupt:
     log_manual_stop_summary(scan_counter)
+    raise SystemExit(0)
 finally:
     mt5.shutdown()

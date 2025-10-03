@@ -1,0 +1,53 @@
+📝 Logging live run to D:\RAVBOTGITHUB\ULTIMA2.0\Ultima-2.0\logs\live_run_20251003_224745.txt (retaining last 30 logs)
+📊 No existing performance file found, starting fresh tracking
+🧠 Strategy roster: 6 profiles active for persona Firestorm Aggressor
+🔥 Persona activated: Firestorm Aggressor (FIRE)
+   ↳ Leverages breakout momentum, stacking hard into explosive trends.
+   ↳ Underlying risk preset: HIGH — Aggressive compounding
+📨 Telegram remote control ready for authorized ID(s): 6401257809
+
+====================================================================
+🔁 Scan #1 | Local 2025-10-03 22:47:45 | UTC 20:47:45
+💼 Account snapshot -> Balance: 777.71 | Equity: 777.71 | Free Margin: 777.71 | Margin Used: 0.00 | Open PnL: 0.00
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 22:47:45
+ℹ️  MetaTrader5.history_positions_get unavailable; using deal history fallback for closed position telemetry.
+ℹ️  Emitting trade_closed telemetry via history_deals_get fallback.
+🛑 Risk guard: blocking new entries (daily DD 9.1%, weekly DD 9.1%).
+🧮 Guard factors -> risk 0.95, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 0.95
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 908.858000
+BTCUSD Volatility pressure: 1.52 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1700.0 pts (17.000000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+ℹ️ BTCUSD Mean Reversion: No actionable signal (raw=None) | regime weight 6.0% | performance 1.00× | adj priority 16.7
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+ℹ️ BTCUSD Impulse Scalper: No actionable signal (raw=None) | regime weight 20.0% | performance 1.00× | adj priority 14.0
+📒 Scan #1 summary -> symbols processed 1/1 | open-symbols 0 | candidates 0 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 6 | ATR-missing 0 | micro-overrides 0 | micro-confirms 0
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 0 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+🛑 Manual stop requested — wrapping up after scan #1.
+💼 Final account snapshot -> Balance: 777.71 | Equity: 777.71 | Free Margin: 777.71 | Margin Used: 0.00 | Margin Level: n/a | Leverage: 500x | Open PnL: 0.00
+📈 Final run performance -> Equity Δ +0.00 (+0.00%) | Balance Δ +0.00
+🧭 Equity governor status -> baseline 777.71, deviation +0.00%, factor 100%, state clear
+📊 Dynamic VaR status -> VaR 0.00% (target 2.40%), factor 100%, samples 1, state calibrating
+📂 Final open positions -> none

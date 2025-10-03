@@ -104,3 +104,59 @@ class DonchianChannelAgent:
             signal = 'sell'
         self.last_signal = signal
         return signal
+
+
+class ImpulseScalpAgent:
+    def __init__(
+        self,
+        ema_fast: int = 3,
+        ema_slow: int = 8,
+        rsi_period: int = 7,
+        vol_floor: float = 0.0006,
+        rsi_upper: float = 68.0,
+        rsi_lower: float = 32.0,
+    ):
+        self.ema_fast = max(1, int(ema_fast))
+        self.ema_slow = max(self.ema_fast + 1, int(ema_slow))
+        self.rsi_period = max(2, int(rsi_period))
+        self.vol_floor = float(max(0.0, vol_floor))
+        self.rsi_upper = float(rsi_upper)
+        self.rsi_lower = float(rsi_lower)
+        self.last_signal = None
+
+    def get_signal(self, df):
+        min_length = max(self.ema_slow, self.rsi_period) + 5
+        if len(df) < min_length:
+            return None
+
+        close = df['close']
+        fast = close.ewm(span=self.ema_fast, adjust=False).mean()
+        slow = close.ewm(span=self.ema_slow, adjust=False).mean()
+        cross = fast - slow
+        curr_cross = cross.iloc[-2]
+        prev_cross = cross.iloc[-3]
+
+        delta = close.diff()
+        gain = delta.clip(lower=0)
+        loss = -delta.clip(upper=0)
+        avg_gain = gain.ewm(alpha=1 / self.rsi_period, adjust=False).mean()
+        avg_loss = loss.ewm(alpha=1 / self.rsi_period, adjust=False).mean()
+        rs = avg_gain / (avg_loss.replace(0, np.nan) + 1e-12)
+        rsi = 100 - (100 / (1 + rs))
+        rsi_value = float(rsi.iloc[-2])
+
+        vol_window = close.pct_change().rolling(self.rsi_period * 2).std()
+        vol_value = float(vol_window.iloc[-2]) if not np.isnan(vol_window.iloc[-2]) else 0.0
+        if vol_value < self.vol_floor:
+            self.last_signal = None
+            return None
+
+        signal = None
+        momentum = close.iloc[-2] - close.iloc[-4]
+        if prev_cross <= 0 and curr_cross > 0 and rsi_value < self.rsi_upper and momentum > 0:
+            signal = 'buy'
+        elif prev_cross >= 0 and curr_cross < 0 and rsi_value > self.rsi_lower and momentum < 0:
+            signal = 'sell'
+
+        self.last_signal = signal
+        return signal

@@ -23,6 +23,10 @@
 - **Partial profit taking**: 25% position closed at 1:1 ratio
 - **ATR-based calculations**: All levels adapt to market volatility
 - **Real-time monitoring**: Stops managed every cycle for all open positions
+- **Liquidity-aware RR**: Tight spreads automatically extend TP targets while elevated spreads widen SL cushions before guard checks
+- **Symbol overrides**: BTC weekend profile now boots with 2.4× ATR stops / 3.2× ATR targets for deeper swing capture
+- **Spread overrides**: Crypto/metals use bespoke raw spread + ATR ratio caps so BTCUSD/XAUUSD stay tradeable despite wider ticks
+- **BTC weekend sizing**: High preset multiplies BTC risk allocation ~2.4× with a 0.05 lot floor so crypto fills stop looking tiny despite 5 000%+ margin levels
 
 ### ✅ **4. Strategy Performance Tracking** 📈
 - **Individual strategy metrics**: Win rate, profit factor, total PnL per symbol
@@ -43,6 +47,13 @@
 - **Stateful between runs**: VaR buffers persist in `risk_guard_state.json`, reset automatically on preset swaps or guard resets.
 - **JSONL telemetry stream**: Every guard snapshot, preset change, reset, and shutdown summary is appended to `logs/telemetry_live.jsonl` for dashboards and alerting.
 - **Guard visibility upgrades**: Console summaries now show per-cycle factors (risk/soft/margin/equity/VaR) so operators can trace why sizing changed.
+
+### ✅ **7. Guard Reinforcement & Micro Telemetry (Oct 2025)**
+- **Daily/weekly guard disabled (Oct 2025)**: Hard stop drawdown clamps are off for unrestricted trading while VaR and other throttles handle risk.
+- **High preset rebalanced**: Aggressive mode now risks 7.5% per trade with a 3.6× cap, re-engaged guardrails (daily 11% / weekly 18%), restored exposure caps, and leaner pyramiding limits (5 adds, tighter confidence).
+- **Exposure & correlation discipline**: High mode now respects lot and notional caps, trims correlation bonuses, and reuses low-volatility throttles so stacking legs can’t run unchecked.
+- **Micro override intelligence**: Guard compression raises micro thresholds, overrides require ≥0.96 guard factor, and high-risk “neutral band” shrinks dynamically with drawdown.
+- **Telemetry enrichment**: `guard_snapshot` now includes guard statuses, drawdowns, and combined buckets while every micro override emits a dedicated event with guard/drawdown context for dashboards.
 
 ### 🔧 **Key Configuration Settings**
 
@@ -175,9 +186,11 @@ The bot is now equipped with institutional-grade features that should significan
 
 | Preset | Account risk / trade | Risk multiplier cap | Soft guard limit | Margin block |
 | --- | --- | --- | --- | --- |
-| **low** | 8% | x2.6 | 28% | 72% |
-| **medium** | 12% | x3.5 | 33% | 78% |
-| **high** | 16% | x4.2 | 38% | 82% |
+| **low** | 1.5% | x1.45 | 18% | 48% |
+| **medium** | 3.5% | x2.25 | 30% | 70% |
+| **high** | 7.5% | x3.60 | 44% | 88% |
+
+High mode now keeps the guardrails engaged—daily/weekly equity clamps, margin unwind triggers, exposure caps, and correlation relief all stay live—while still running the largest permissible sizing. Medium and low retain their tighter guardrails and customized unwind cadence so they stay tradeable on balanced or capital-preservation mandates.
 
 Switching presets also nudges soft/margin guard alert/resume thresholds so the bot aligns with the chosen aggressiveness. After any change, the command reply confirms the active preset and key risk numbers.
 

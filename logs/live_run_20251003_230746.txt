@@ -1,0 +1,208 @@
+📝 Logging live run to D:\RAVBOTGITHUB\ULTIMA2.0\Ultima-2.0\logs\live_run_20251003_230746.txt (retaining last 30 logs)
+📊 No existing performance file found, starting fresh tracking
+🧠 Strategy roster: 6 profiles active for persona Firestorm Aggressor
+🔥 Persona activated: Firestorm Aggressor (FIRE)
+   ↳ Leverages breakout momentum, stacking hard into explosive trends.
+   ↳ Underlying risk preset: HIGH — Aggressive compounding
+📨 Telegram remote control ready for authorized ID(s): 6401257809
+
+====================================================================
+🔁 Scan #1 | Local 2025-10-03 23:07:46 | UTC 21:07:46
+💼 Account snapshot -> Balance: 777.71 | Equity: 777.71 | Free Margin: 777.71 | Margin Used: 0.00 | Open PnL: 0.00
+📂 Open positions -> none
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:07:46
+ℹ️  MetaTrader5.history_positions_get unavailable; using deal history fallback for closed position telemetry.
+ℹ️  Emitting trade_closed telemetry via history_deals_get fallback.
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 1036.508000
+BTCUSD Volatility pressure: 1.62 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1700.0 pts (17.000000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD: no open positions
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+✅ BTCUSD Mean Reversion: Signal buy confirmed by MTF (H1 bias: bullish)
+🔥 BTCUSD: High-risk neutral micro override for BUY (score -0.00% within ±0.08%, guard 1.00, scale 0.43).
+🎯 BTCUSD Mean Reversion: Micro momentum aligned -0.00% ≥ 0.21% (soft confirm, override)
+🤖 ML confidence model currently uses synthetic placeholder data; train on real telemetry to improve accuracy.
+🤖 Loaded ML confidence model trained at 2025-10-03T19:33:38+00:00 from analytics_output\trade_classifier.joblib.
+🤖 ML model metadata: trained_at=2025-10-03T19:33:38+00:00, rows=4, sklearn=1.7.2
+🤖 BTCUSD Mean Reversion: ML p=46.71% → confidence x0.79 (0.72→0.57)
+BTCUSD Mean Reversion Final Signal: buy (regime: 6.0%, performance: 1.00×, adj priority: 16.7, confidence 0.57/0.37, risk base x1.09 → liquidity x1.36 → alpha x1.36 → low-vol x1.36 → guard x1.16, ATR(7)=917.511429, micro -0.00%/0.21% (soft/override))
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+🔍 BTCUSD Impulse Scalper: Signal sell rejected by MTF filter (H1 bias: bullish)
+BTCUSD: executing BUY via Mean Reversion (priority 16.666666666666668, confidence 0.57) | comment MRB17
+📉 BTCUSD: Spread snapshot 1704.0 pts (17.040000) | Spread/ATR 0.02
+Current account equity: $777.71 (balance: $777.71)
+🎯 BTCUSD: base lot 0.07 using risk multiplier 1.16
+⚖️ BTCUSD: Final order volume 0.07 lots
+BTCUSD ATR=917.511429 | SL=120222.53 | TP=126094.61 (SLx=2.40, TPx=4.00) [override sl→2.40 | override tp→3.20 | tp+0.80 (spread 0.02)]
+⚙️ BTCUSD: Fill mode IOC, slippage tolerance 5 pts
+OrderSend success for BTCUSD: buy at 122424.56 | SL=120222.53 TP=126094.61
+📒 Scan #1 summary -> symbols processed 1/1 | open-symbols 0 | candidates 1 | executed 1 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 0 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 4 | ATR-missing 0 | micro-overrides 1 | micro-confirms 1
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 1 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #2 | Local 2025-10-03 23:08:06 | UTC 21:08:06
+💼 Account snapshot -> Balance: 777.71 | Equity: 776.93 | Free Margin: 762.33 | Margin Used: 14.60 | Open PnL: -0.78
+📈 Run performance -> Equity Δ -0.78 (-0.10%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 14.60 (1.9% of equity) | Margin level 5321.4% | Leverage setting 500x
+📂 Open positions -> BTCUSD: 1 pos (buy 0.07, sell 0.00, net +0.07, pnl -0.78)
+📘 Position ledger (all symbols):
+   • BTCUSD #419607157 BUY 0.07@122424.56→122411.62 (-1294 pts) | PnL -0.78 | SL 120222.53 (218909 pts) | TP 126094.61 (368299 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-04 00:07:48 | Magic 123456 | Tag MRB17
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:08:06
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 1036.508000
+BTCUSD Volatility pressure: 1.62 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1711.0 pts (17.110000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD Open position -> #419607157 BUY 0.07@122424.56→122411.62 (-1294 pts) | PnL -0.78 | SL 120222.53 (218909 pts) | TP 126094.61 (368299 pts) | Age 0s | Tag MRB17
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+✅ BTCUSD Mean Reversion: Signal buy confirmed by MTF (H1 bias: bullish)
+🔥 BTCUSD: High-risk neutral micro override for BUY (score -0.00% within ±0.08%, guard 1.00, scale 0.42).
+🎯 BTCUSD Mean Reversion: Micro momentum aligned -0.00% ≥ 0.21% (soft confirm, override)
+🤖 BTCUSD Mean Reversion: ML p=46.71% → confidence x0.79 (0.72→0.57)
+BTCUSD Mean Reversion Final Signal: buy (regime: 6.0%, performance: 1.00×, adj priority: 16.7, confidence 0.57/0.37, risk base x1.09 → liquidity x1.36 → alpha x1.36 → low-vol x1.36 → guard x1.16, ATR(7)=917.511429, micro -0.00%/0.21% (soft/override))
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+🔍 BTCUSD Impulse Scalper: Signal sell rejected by MTF filter (H1 bias: bullish)
+BTCUSD: already in buy position, ignoring Mean Reversion (priority 16.666666666666668)
+📒 Scan #2 summary -> symbols processed 1/1 | open-symbols 1 | candidates 1 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 1 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 4 | ATR-missing 0 | micro-overrides 1 | micro-confirms 1
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 1 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #3 | Local 2025-10-03 23:08:24 | UTC 21:08:24
+💼 Account snapshot -> Balance: 777.71 | Equity: 776.89 | Free Margin: 762.29 | Margin Used: 14.60 | Open PnL: -0.82
+📈 Run performance -> Equity Δ -0.82 (-0.11%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 14.60 (1.9% of equity) | Margin level 5321.2% | Leverage setting 500x
+📂 Open positions -> BTCUSD: 1 pos (buy 0.07, sell 0.00, net +0.07, pnl -0.82)
+📘 Position ledger (all symbols):
+   • BTCUSD #419607157 BUY 0.07@122424.56→122410.89 (-1367 pts) | PnL -0.82 | SL 120222.53 (218836 pts) | TP 126094.61 (368372 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-04 00:07:48 | Magic 123456 | Tag MRB17
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:08:24
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 1036.508000
+BTCUSD Volatility pressure: 1.62 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1701.0 pts (17.010000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD Open position -> #419607157 BUY 0.07@122424.56→122410.89 (-1367 pts) | PnL -0.82 | SL 120222.53 (218836 pts) | TP 126094.61 (368372 pts) | Age 0s | Tag MRB17
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+✅ BTCUSD Mean Reversion: Signal buy confirmed by MTF (H1 bias: bullish)
+🔥 BTCUSD: High-risk neutral micro override for BUY (score -0.00% within ±0.08%, guard 1.00, scale 0.42).
+🎯 BTCUSD Mean Reversion: Micro momentum aligned -0.00% ≥ 0.21% (soft confirm, override)
+🤖 BTCUSD Mean Reversion: ML p=46.71% → confidence x0.79 (0.72→0.57)
+BTCUSD Mean Reversion Final Signal: buy (regime: 6.0%, performance: 1.00×, adj priority: 16.7, confidence 0.57/0.37, risk base x1.09 → liquidity x1.36 → alpha x1.36 → low-vol x1.36 → guard x1.16, ATR(7)=917.511429, micro -0.00%/0.21% (soft/override))
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+🔍 BTCUSD Impulse Scalper: Signal sell rejected by MTF filter (H1 bias: bullish)
+BTCUSD: already in buy position, ignoring Mean Reversion (priority 16.666666666666668)
+📒 Scan #3 summary -> symbols processed 1/1 | open-symbols 1 | candidates 1 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 1 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 4 | ATR-missing 0 | micro-overrides 1 | micro-confirms 1
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 1 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+====================================================================
+🔁 Scan #4 | Local 2025-10-03 23:08:42 | UTC 21:08:42
+💼 Account snapshot -> Balance: 777.71 | Equity: 776.02 | Free Margin: 761.42 | Margin Used: 14.60 | Open PnL: -1.69
+📈 Run performance -> Equity Δ -1.69 (-0.22%) | Balance Δ +0.00
+⚙️ Leverage usage -> Margin 14.60 (1.9% of equity) | Margin level 5315.2% | Leverage setting 500x
+📂 Open positions -> BTCUSD: 1 pos (buy 0.07, sell 0.00, net +0.07, pnl -1.69)
+📘 Position ledger (all symbols):
+   • BTCUSD #419607157 BUY 0.07@122424.56→122396.29 (-2827 pts) | PnL -1.69 | SL 120222.53 (217376 pts) | TP 126094.61 (369832 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-04 00:07:48 | Magic 123456 | Tag MRB17
+🪙 Weekend crypto mode active -> BTCUSD
+
+🌍 Active trading session: Crypto Weekend
+Checking signals at 2025-10-03 23:08:42
+🛡️ Risk guard disabled: no daily/weekly drawdown limits enforced this cycle.
+🧮 Guard factors -> risk 1.00, soft 1.00, margin 1.00, equity 1.00, VaR 1.00, combined 1.00
+📊 BTCUSD: Trading allowed (session priority 5/1 for Crypto Weekend)
+BTCUSD computed ATR(5) = 1036.508000
+BTCUSD Volatility pressure: 1.62 | Candle conviction: 0.50
+📉 BTCUSD Spread snapshot -> 1701.0 pts (17.010000) | Spread/ATR 0.02
+📊 BTCUSD Market Regime: VOLATILE
+📈 BTCUSD Open position -> #419607157 BUY 0.07@122424.56→122396.29 (-2827 pts) | PnL -1.69 | SL 120222.53 (217376 pts) | TP 126094.61 (369832 pts) | Age 0s | Tag MRB17
+💧 BTCUSD Breakout: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.23 → x1.54
+ℹ️ BTCUSD Breakout: No actionable signal (raw=None) | regime weight 40.0% | performance 1.00× | adj priority 15.0
+💧 BTCUSD Donchian Channel: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.11 → x1.39
+ℹ️ BTCUSD Donchian Channel: No actionable signal (raw=None) | regime weight 10.0% | performance 1.00× | adj priority 32.0
+💧 BTCUSD MA Crossover: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.13 → x1.41
+ℹ️ BTCUSD MA Crossover: No actionable signal (raw=None) | regime weight 16.0% | performance 1.00× | adj priority 25.0
+💧 BTCUSD Momentum Trend: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.18 → x1.47
+ℹ️ BTCUSD Momentum Trend: No actionable signal (raw=None) | regime weight 28.0% | performance 1.00× | adj priority 21.4
+💧 BTCUSD Mean Reversion: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.09 → x1.36
+✅ BTCUSD Mean Reversion: Signal buy confirmed by MTF (H1 bias: bullish)
+🔥 BTCUSD: High-risk neutral micro override for BUY (score -0.01% within ±0.08%, guard 1.00, scale 0.40).
+🎯 BTCUSD Mean Reversion: Micro momentum aligned -0.01% ≥ 0.21% (soft confirm, override)
+🤖 BTCUSD Mean Reversion: ML p=46.71% → confidence x0.79 (0.72→0.57)
+BTCUSD Mean Reversion Final Signal: buy (regime: 6.0%, performance: 1.00×, adj priority: 16.7, confidence 0.57/0.37, risk base x1.09 → liquidity x1.36 → alpha x1.36 → low-vol x1.36 → guard x1.16, ATR(7)=917.511429, micro -0.01%/0.21% (soft/override))
+💧 BTCUSD Impulse Scalper: Liquidity boosted -> boost to x1.25 (spread/ATR 0.02) | risk x1.15 → x1.44
+🔍 BTCUSD Impulse Scalper: Signal sell rejected by MTF filter (H1 bias: bullish)
+BTCUSD: already in buy position, ignoring Mean Reversion (priority 16.666666666666668)
+📒 Scan #4 summary -> symbols processed 1/1 | open-symbols 1 | candidates 1 | executed 0 | blocked 0 | pyramids 0 | confidence-filtered 0 | micro-filtered 0 | position-blocked 0 | duplicates 1 | guard-blocked 0 | low-vol skipped 0 | counter-exits 0
+🛠️ Stop management -> breakeven 0 | trailing 0 | partials 0 | partial-missed 0 | adjustment-fails 0
+📊 Strategy diagnostics -> disabled 0 | persona-gated 0 | mode-gated 0 | no-signal 4 | ATR-missing 0 | micro-overrides 1 | micro-confirms 1
+💧 Liquidity gating -> boosts 6 | throttles 0 | blocks 0
+🌙 Low-vol guard -> throttles 0 | confidence-add 0
+⚡ Alpha surge -> detected 0 | scaled 0
+🤖 ML confidence -> boosts 0 | cuts 1 | neutral 0 | skipped 0 | unavailable 0
+⏱️ Next scan in 18 seconds...
+
+🛑 Manual stop requested — wrapping up after scan #4.
+💼 Final account snapshot -> Balance: 777.71 | Equity: 775.99 | Free Margin: 761.39 | Margin Used: 14.60 | Margin Level: 5315.0% | Leverage: 500x | Open PnL: -1.72
+📈 Final run performance -> Equity Δ -1.72 (-0.22%) | Balance Δ +0.00
+🧭 Equity governor status -> baseline 777.24, deviation -0.16%, factor 100%, state clear
+📊 Dynamic VaR status -> VaR 0.00% (target 2.40%), factor 100%, samples 4, state calibrating
+📂 Final open positions -> BTCUSD: 1 pos (buy 0.07, sell 0.00, net +0.07, pnl -1.72)
+📘 Final position ledger:
+   • BTCUSD #419607157 BUY 0.07@122424.56→122395.68 (-2888 pts) | PnL -1.72 | SL 120222.53 (217315 pts) | TP 126094.61 (369893 pts) | Age 0s | Swap +0.00 | Comm +0.00 | Opened 2025-10-04 00:07:48 | Magic 123456 | Tag MRB17
